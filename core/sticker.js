@@ -163,16 +163,33 @@
   }
 
   /* 사진 → 스티커. choose({ photo, cut, make })가 있으면 사용자가 고른 스티커를 써요(null이면 취소) */
+  /* 이미 배경이 투명한 이미지인지 (아이폰 사진 앱에서 복사한 피사체, 투명 PNG) */
+  function hasAlpha(canvas) {
+    const { width: w, height: h } = canvas;
+    const d = canvas.getContext('2d').getImageData(0, 0, w, h).data;
+    let clear = 0, n = 0;
+    const step = Math.max(1, Math.floor(Math.sqrt((w * h) / 20000)));
+    for (let y = 0; y < h; y += step) {
+      for (let x = 0; x < w; x += step) { n++; if (d[(y * w + x) * 4 + 3] < 200) clear++; }
+    }
+    return clear / n > 0.02;
+  }
+
   async function stampWithFile(name, lineN, file, onStatus, choose) {
     const say = onStatus || (() => {});
     say('사진 줄이는 중…');
     const photo = await fileToCanvas(file, 1024);
     let cut = null;
-    try {
-      say('배경 지우는 중… 폰에서는 20~40초쯤 걸려요');
-      cut = await cutOut(photo, say);
-    } catch (e) {
-      console.warn('배경 제거 실패, 사진 그대로 사용', e);
+    const ready = hasAlpha(photo);
+    if (ready) {
+      cut = photo;               // 이미 누끼가 따져 있으면 모델을 건너뛰어요
+    } else {
+      try {
+        say('배경 지우는 중… 폰에서는 20~40초쯤 걸려요');
+        cut = await cutOut(photo, say);
+      } catch (e) {
+        console.warn('배경 제거 실패, 사진 그대로 사용', e);
+      }
     }
     const make = (mode, level) => {
       if (mode === 'photo' || !cut) return { canvas: stickerFromPhoto(photo), ink: 1 };
@@ -182,7 +199,7 @@
     let sticker;
     if (choose) {
       say('스티커 모양을 골라 주세요');
-      sticker = await choose({ photo, cut, make });
+      sticker = await choose({ photo, cut, make, ready });
       if (!sticker) return { cancelled: true, cut: !!cut };
     } else {
       sticker = make(cut ? 'cut' : 'photo', DEFAULT_CLEAN).canvas;
@@ -198,7 +215,7 @@
 
   /* ---------- 스티커 다듬기 창 ---------- */
   const DEFAULT_CLEAN = 0.2;
-  function editSticker({ cut, make }) {
+  function editSticker({ cut, make, ready }) {
     return new Promise((resolve) => {
       const scrim = document.createElement('div');
       scrim.className = 'scrim on';
@@ -215,13 +232,14 @@
   <button type="button" data-mode="cut" aria-pressed="${cut ? 'true' : 'false'}" ${cut ? '' : 'disabled'}>배경 지우기</button>
   <button type="button" data-mode="photo" aria-pressed="${cut ? 'false' : 'true'}">사진 그대로</button>
 </div>
-<label class="ed-slider" ${cut ? '' : 'hidden'}><span>잔상 지우기</span><input type="range" id="edLevel" min="0" max="85" step="5" value="${DEFAULT_CLEAN * 100}"><output id="edOut"></output></label>
+<label class="ed-slider" ${cut ? '' : 'hidden'}><span>잔상 지우기</span><input type="range" id="edLevel" min="0" max="85" step="5" value="${ready ? 0 : DEFAULT_CLEAN * 100}"><output id="edOut"></output></label>
 <p class="ed-hint" id="edHint">${cut ? '흐릿하게 남은 부분이 있으면 오른쪽으로, 필요한 부분까지 지워지면 왼쪽으로 옮겨 보세요. 역명판처럼 판이 사진을 꽉 채우면 사진 그대로가 잘 맞아요.' : '배경을 지우지 못했어요. 사진을 둥근 스티커로 붙여요.'}</p>
 <div class="ed-actions"><button type="button" class="pill" data-act="cancel">취소</button><button type="button" class="ed-ok" data-act="ok">붙이기</button></div>`;
       document.body.append(scrim, box);
       const cv = $('.ed-canvas', box), range = $('#edLevel', box), out = $('#edOut', box), ok = $('[data-act="ok"]', box), hint = $('#edHint', box);
       const HINT = {
-        cut: '흐릿하게 남은 부분이 있으면 오른쪽으로, 필요한 부분까지 지워지면 왼쪽으로 옮겨 보세요. 역명판처럼 판이 사진을 꽉 채우면 사진 그대로가 잘 맞아요.',
+        cut: ready ? '누끼를 그대로 붙여요. 가장자리가 흐릿하면 슬라이더를 오른쪽으로 옮겨 보세요.'
+          : '흐릿하게 남은 부분이 있으면 오른쪽으로 옮겨 보세요. 더 깔끔한 누끼는 아이폰 사진 앱에서 피사체를 길게 눌러 복사한 뒤 누끼 붙여넣기로 가져올 수 있어요.',
         photo: cut ? '사진을 자르지 않고 둥근 스티커로 붙여요.' : '배경을 지우지 못했어요. 사진을 둥근 스티커로 붙여요.',
       };
       let mode = cut ? 'cut' : 'photo', cur = null, queued = false;
@@ -275,5 +293,5 @@
     emit('stamps', { name, removed: true });
   }
 
-  Object.assign(C, { fileToCanvas, toBlob, trimCanvas, stickerFromCutout, stickerFromPhoto, bgLib, loadBG, cutOut, savePhoto, cleanCut, stampWithFile, DEFAULT_CLEAN, editSticker, stampPlain, unstamp });
+  Object.assign(C, { hasAlpha, fileToCanvas, toBlob, trimCanvas, stickerFromCutout, stickerFromPhoto, bgLib, loadBG, cutOut, savePhoto, cleanCut, stampWithFile, DEFAULT_CLEAN, editSticker, stampPlain, unstamp });
 })();

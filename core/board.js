@@ -72,8 +72,11 @@
 <div class="stampbar" style="--line:${L.color};--ink-on:${L.ink}">
   <button type="button" class="cam" ${busyStamp ? 'disabled' : ''}>${CAM_SVG}<span>${stamp && stamp.p ? '사진 다시 찍기' : '사진으로 도장 찍기'}</span></button>
   <input type="file" class="shot" accept="image/*" capture="environment" hidden>
+  <input type="file" class="pick" accept="image/*" hidden>
   <span class="status" role="status">${stamp ? esc(dotDate(stamp.d)) + '에 다녀왔어요' : '출구나 역명판을 찍으면 스티커가 돼요'}</span>
   <span class="stampopts">
+    <button type="button" class="link-btn" data-act="pick">앨범에서 고르기</button>
+    <button type="button" class="link-btn" data-act="paste">누끼 붙여넣기</button>
     ${!stamp ? '<button type="button" class="link-btn" data-act="plain">사진 없이 도장만</button>' : ''}
     ${stamp ? '<button type="button" class="link-btn" data-act="card">도장 카드 공유</button>' : ''}
     ${stamp ? '<button type="button" class="link-btn" data-act="clear">도장 지우기</button>' : ''}
@@ -93,11 +96,16 @@
 
     const ob = $('.origin-btn', el);
     ob.addEventListener('click', () => openOriginPicker(ob));
-    const cam = $('.cam', el), shot = $('.shot', el), status = $('.status', el);
+    const cam = $('.cam', el), shot = $('.shot', el), pick = $('.pick', el), status = $('.status', el);
     cam.addEventListener('click', () => shot.click());
-    shot.addEventListener('change', async () => {
-      const f = shot.files && shot.files[0];
-      shot.value = '';
+    const fromInput = (inp) => () => {
+      const f = inp.files && inp.files[0];
+      inp.value = '';
+      useFile(f);
+    };
+    shot.addEventListener('change', fromInput(shot));
+    pick.addEventListener('change', fromInput(pick));
+    async function useFile(f) {
       if (!f || busyStamp) return;
       busyStamp = true;
       cam.disabled = true;
@@ -119,9 +127,25 @@
         status.textContent = '사진을 처리하지 못했어요. 다시 시도해 주세요';
         cam.disabled = false;
       }
-    });
+    }
+    /* 아이폰 사진 앱: 사진을 열고 피사체를 길게 눌러 '복사' → 여기서 붙여넣기. 배경이 투명하게 들어와요 */
+    async function pasteImage() {
+      try {
+        if (!navigator.clipboard || !navigator.clipboard.read) throw new Error('unsupported');
+        const items = await navigator.clipboard.read();
+        for (const it of items) {
+          const t = it.types.find((x) => x.startsWith('image/'));
+          if (t) { useFile(new File([await it.getType(t)], 'paste.png', { type: t })); return; }
+        }
+        status.textContent = "복사한 이미지가 없어요. 사진 앱에서 피사체를 길게 눌러 '복사'한 뒤 다시 눌러 주세요";
+      } catch (e) {
+        status.textContent = "붙여넣기를 쓸 수 없어요. 사진 앱에서 피사체를 길게 눌러 '공유 → 이미지 저장' 후 '앨범에서 고르기'로 골라 주세요";
+      }
+    }
     el.querySelectorAll('[data-act]').forEach((b) => b.addEventListener('click', async () => {
       if (b.dataset.act === 'plain') { stampPlain(name, line); return; }
+      if (b.dataset.act === 'pick') { pick.click(); return; }
+      if (b.dataset.act === 'paste') { pasteImage(); return; }
       if (b.dataset.act === 'card') {
         b.disabled = true;
         status.textContent = '도장 카드 만드는 중…';

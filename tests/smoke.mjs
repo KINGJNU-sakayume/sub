@@ -97,8 +97,8 @@ console.log('사진 도장 (배경 제거 없이)');
   const p = await page(seed({ cur: { name: '서울역', line: 1 } }));
   await p.goto(BASE + 'index.html');
   await p.waitForSelector('#board:not([hidden]) .shot', { state: 'attached' });
-  /* 1x1보다 큰 간단한 PNG를 만들어 올려요 */
-  const png = await p.evaluate(() => { const c = document.createElement('canvas'); c.width = 120; c.height = 80; const g = c.getContext('2d'); g.fillStyle = '#0052A4'; g.fillRect(10, 10, 100, 60); return c.toDataURL('image/png').split(',')[1]; });
+  /* 배경까지 칠한(투명한 곳 없는) 사진 대신 PNG */
+  const png = await p.evaluate(() => { const c = document.createElement('canvas'); c.width = 120; c.height = 80; const g = c.getContext('2d'); g.fillStyle = '#e8ecea'; g.fillRect(0, 0, 120, 80); g.fillStyle = '#0052A4'; g.fillRect(10, 10, 100, 60); return c.toDataURL('image/png').split(',')[1]; });
   const file = join(tmpdir(), 'smoke-stamp.png');
   writeFileSync(file, Buffer.from(png, 'base64'));
   await p.setInputFiles('.shot', file);
@@ -109,6 +109,28 @@ console.log('사진 도장 (배경 제거 없이)');
   ok(await p.evaluate(() => !!window.Core.state.stamps['서울역'] && window.Core.state.stamps['서울역'].p === 1), '스티커 도장이 저장됨');
   const [card] = await Promise.all([p.waitForEvent('download'), p.click('[data-act="card"]')]);
   ok(/^metro-stamp-\d{8}\.png$/.test(card.suggestedFilename()), '도장 카드 이미지가 만들어짐');
+  ok(!p.errors.length, '자바스크립트 오류 없음' + (p.errors.length ? ': ' + p.errors[0] : ''));
+  await p.context().close();
+}
+
+console.log('복사한 누끼 붙여넣기');
+{
+  const p = await page(seed({ cur: { name: '시청', line: 1 } }));
+  await p.context().grantPermissions(['clipboard-read', 'clipboard-write']);
+  await p.goto(BASE + 'index.html');
+  await p.waitForSelector('[data-act="paste"]');
+  await p.evaluate(async () => {
+    const c = document.createElement('canvas'); c.width = 200; c.height = 200;
+    const g = c.getContext('2d'); g.fillStyle = '#00A84D'; g.beginPath(); g.arc(100, 100, 70, 0, Math.PI * 2); g.fill();
+    const blob = await new Promise((r) => c.toBlob(r, 'image/png'));
+    await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+  });
+  await p.click('[data-act="paste"]');
+  await p.waitForSelector('.editor', { timeout: 15000 });
+  ok(!(await p.isDisabled('[data-mode="cut"]')) && (await p.getAttribute('[data-mode="cut"]', 'aria-pressed')) === 'true', '투명 배경 이미지는 모델 없이 바로 누끼로 열림');
+  await p.click('[data-act="ok"]');
+  await p.waitForSelector('.sticker img', { timeout: 10000 });
+  ok(true, '붙여넣은 누끼가 스티커로 붙음');
   ok(!p.errors.length, '자바스크립트 오류 없음' + (p.errors.length ? ': ' + p.errors[0] : ''));
   await p.context().close();
 }

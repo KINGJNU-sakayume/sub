@@ -156,7 +156,8 @@ button { font: inherit; color: inherit; }
 .cam:hover:not(:disabled) { filter: brightness(1.1); }
 .cam:disabled { opacity: .6; cursor: progress; }
 .status { font-size: .92rem; color: var(--board-muted); }
-.stampopts { margin-left: auto; display: flex; gap: 16px; }
+.stampopts { margin-left: auto; display: flex; flex-wrap: wrap; gap: 2px 18px; }
+.stampopts .link-btn { white-space: nowrap; }
 .info-grid { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); }
 .sect { padding: 22px 28px 14px; }
 .sect + .sect { border-left: 1px solid var(--board-rule); }
