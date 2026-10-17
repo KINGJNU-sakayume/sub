@@ -3,6 +3,7 @@ name: Check
 on:
   pull_request:
   workflow_dispatch:
+  workflow_call:      # 배포(pages.yml)도 이 검사를 통과해야 진행돼요
 
 permissions:
   contents: read

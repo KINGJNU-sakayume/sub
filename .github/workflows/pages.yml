@@ -15,17 +15,17 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  check:
+    uses: ./.github/workflows/check.yml
+
   deploy:
+    needs: check
     runs-on: ubuntu-latest
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
-
-      - name: Check scripts
-        run: |
-          for f in data.js geo.js access.js core/*.js sign.js map.js sw.js; do node --check "$f"; done
 
       - name: Collect site files
         run: |

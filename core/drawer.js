@@ -5,7 +5,7 @@
   const {
     LINES, $, reduced, esc, lineName, isText, lineShort, label, STATIONS, today, on, emit, state, save,
     current, lineOn, inScope, activeLines, pool, photoURL, tts, unlockVoice, announce, exportJSON,
-    importJSON, sealSVG, voiceName, dotDate,
+    importJSON, sealSVG, voiceName, dotDate, modal,
   } = C;
 
   /* ---------- 기록 서랍 ---------- */
@@ -22,18 +22,22 @@
     dr.setAttribute('aria-labelledby', 'drawerTitle');
     dr.innerHTML = `
 <div class="drawer-head"><h2 id="drawerTitle">도장 기록</h2><button type="button" class="x" aria-label="닫기">닫기</button></div>
+<nav class="drawer-nav" aria-label="기록 바로가기">
+  <button type="button" data-go="secBook">도장첩</button><button type="button" data-go="secSound">소리</button><button type="button" data-go="secScope">뽑기 범위</button><button type="button" data-go="secBackup">백업</button>
+</nav>
 <div class="drawer-body">
+  <h3 class="sr" id="secBook" tabindex="-1">도장첩</h3>
   <p class="sum" id="drawerSum"></p>
   <div class="book" id="book"></div>
   <section class="settings">
-    <h3>설정</h3>
+    <h3 id="secSound" tabindex="-1">설정</h3>
     <label class="switch"><input type="checkbox" id="optSound"><span class="box" aria-hidden="true"></span><span>소리</span></label>
     <label class="switch"><input type="checkbox" id="optVoice"><span class="box" aria-hidden="true"></span><span>안내방송</span></label>
     <p class="hint" id="voiceInfo"></p>
     <button type="button" class="pill" id="voiceTry">안내방송 들어 보기</button>
   </section>
   <section class="settings">
-    <h3>뽑기 범위</h3>
+    <h3 id="secScope" tabindex="-1">뽑기 범위</h3>
     <fieldset class="scope">
       <legend class="sr">뽑을 역의 지역</legend>
       <label class="radio"><input type="radio" name="scope" value="seoul"><span class="dot" aria-hidden="true"></span><span>서울</span></label>
@@ -45,7 +49,7 @@
     <p class="hint">끈 노선과 범위 밖 역의 도장도 지워지지 않고 남아요. 길 안내는 모든 노선으로 찾아요.</p>
   </section>
   <section class="settings">
-    <h3>백업</h3>
+    <h3 id="secBackup" tabindex="-1">백업</h3>
     <p class="hint">기록은 이 브라우저에만 저장돼요. 기기를 바꾸기 전에 내보내 두세요.</p>
     <div class="backup-actions">
       <button type="button" class="pill" id="export">기록 내보내기</button>
@@ -58,6 +62,7 @@
     document.body.append(scrim, dr);
 
     let isOpen = false;
+    let release = null;
 
     const optSound = $('#optSound', dr), optVoice = $('#optVoice', dr);
     optSound.checked = !!state.sound;
@@ -145,6 +150,15 @@
         if (ring) ring.innerHTML = `<img src="${u}" alt="">`;
       });
     }
+    /* 바로가기: 긴 도장첩을 지나지 않고 설정·백업으로 */
+    $('.drawer-nav', dr).addEventListener('click', (e) => {
+      const go = e.target.closest('[data-go]');
+      if (!go) return;
+      const h = $('#' + go.dataset.go, dr), body = $('.drawer-body', dr);
+      const top = go.dataset.go === 'secBook' ? 0 : h.getBoundingClientRect().top - body.getBoundingClientRect().top + body.scrollTop - 14;
+      body.scrollTo({ top, behavior: reduced ? 'auto' : 'smooth' });
+      h.focus({ preventScroll: true });
+    });
     dr.addEventListener('click', (e) => {
       const tab = e.target.closest('.book-tab');
       if (tab) { state.bookLine = tab.dataset.line; save(); renderBook(); return; }
@@ -173,6 +187,8 @@
       dr.hidden = false;
       requestAnimationFrame(() => { scrim.classList.add('on'); dr.classList.add('on'); });
       btn.setAttribute('aria-expanded', 'true');
+      release = modal(dr, close);
+      $('.drawer-body', dr).scrollTop = 0;
       $('.x', dr).focus();
     }
     function close() {
@@ -183,6 +199,8 @@
       btn.setAttribute('aria-expanded', 'false');
       const done = () => { if (!isOpen) { scrim.hidden = true; dr.hidden = true; } };
       if (reduced) done(); else setTimeout(done, 260);
+      if (release) release();
+      release = null;
       btn.focus();
     }
 
@@ -191,18 +209,6 @@
     btn.addEventListener('click', open);
     $('.x', dr).addEventListener('click', close);
     scrim.addEventListener('click', close);
-    /* 열려 있는 동안 Tab은 서랍 안에서만 돌아요 */
-    const FOCUSABLE = 'button:not([disabled]), a[href], input:not([hidden]):not([disabled]), summary, [tabindex]:not([tabindex="-1"])';
-    document.addEventListener('keydown', (e) => {
-      if (!isOpen) return;
-      if (e.key === 'Escape') { close(); return; }
-      if (e.key !== 'Tab') return;
-      const items = [...dr.querySelectorAll(FOCUSABLE)].filter((x) => x.getClientRects().length);
-      if (!items.length) return;
-      const first = items[0], last = items[items.length - 1];
-      if (e.shiftKey && (document.activeElement === first || !dr.contains(document.activeElement))) { e.preventDefault(); last.focus(); }
-      else if (!e.shiftKey && (document.activeElement === last || !dr.contains(document.activeElement))) { e.preventDefault(); first.focus(); }
-    });
     on('stamps', () => { if (isOpen) renderAll(); });
     on('settings', () => { if (isOpen) renderAll(); });
 
@@ -210,13 +216,19 @@
       const note = $('#backupNote', dr);
       note.textContent = '내보내는 중…';
       try {
-        const blob = await exportJSON();
+        const r = await exportJSON();
         const a = document.createElement('a');
-        a.href = URL.createObjectURL(blob);
+        a.href = URL.createObjectURL(r.blob);
         a.download = 'metro-stamps-' + today() + '.json';
         a.click();
         setTimeout(() => URL.revokeObjectURL(a.href), 1500);
-        note.textContent = '내보냈어요. 사진도 함께 들어 있어요.';
+        /* 사진을 다 못 담았으면 부분 백업이라고 분명히 알려요 */
+        if (r.missing.length) {
+          const names = r.missing.slice(0, 3).map(label).join(', ') + (r.missing.length > 3 ? ` 외 ${r.missing.length - 3}곳` : '');
+          note.textContent = `일부만 내보냈어요. 사진 ${r.total}장 중 ${r.included}장만 들어 있어요 (빠진 역: ${names}). 다시 내보내 보세요.`;
+        } else {
+          note.textContent = r.total ? `내보냈어요. 사진 ${r.total}장도 함께 들어 있어요.` : '내보냈어요.';
+        }
       } catch (e) { note.textContent = '내보내지 못했어요.'; }
     });
     $('#import', dr).addEventListener('click', () => $('#file', dr).click());
@@ -226,8 +238,14 @@
       if (!f) return;
       const note = $('#backupNote', dr);
       try {
-        const n = await importJSON(f);
-        note.textContent = '도장 ' + n + '개를 불러왔어요. 이미 있던 도장은 그대로 뒀어요.';
+        const r = await importJSON(f);
+        const parts = [`도장 ${r.added}개를 불러왔어요`];
+        if (r.photos) parts.push(`있던 도장에 사진 ${r.photos}장을 채웠어요`);
+        if (r.skipped) parts.push(`${r.skipped}개는 이미 있거나 없는 역이라 그대로 뒀어요`);
+        if (r.photoFail) parts.push(`사진 ${r.photoFail}장은 읽지 못했어요`);
+        if (r.invalid) parts.push(`날짜가 잘못된 ${r.invalid}개는 건너뛰었어요`);
+        if (!r.saved) parts.push('하지만 기기에 저장하지 못했어요');
+        note.textContent = parts.join('. ') + '.';
       } catch (err) {
         note.textContent = '불러오지 못했어요. 이 페이지에서 내보낸 JSON 파일인지 확인해 주세요.';
       }

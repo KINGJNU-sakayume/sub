@@ -41,6 +41,7 @@
       ${itx ? '<p class="hint">정차역과 열차 시각은 바뀔 수 있어요. 타기 전에 코레일에서 확인하세요.</p>' : ''}`;
   }
 
+  const SAVE_FAIL = '도장은 붙였지만 기기에 저장하지 못했어요. 기록 › 백업에서 내보내 두세요';
   let infoEl = null;
   let infoCur = null;
   let busyStamp = false;
@@ -117,14 +118,17 @@
           cam.disabled = false;
           return;
         }
-        if (!r.cut) {
-          const s2 = $('.status', el);
-          if (s2) s2.textContent = '배경은 못 지웠지만 사진 그대로 붙였어요';
-        }
+        /* 도장을 찍으면 안내판을 다시 그려요. 새 안내판에 결과를 적고 포커스를 돌려줘요 */
+        const s2 = $('.status', el), c2 = $('.cam', el);
+        if (s2 && !r.saved) s2.textContent = SAVE_FAIL;
+        else if (s2 && r.failed) s2.textContent = '배경은 못 지웠지만 사진 그대로 붙였어요';
+        if (c2 && (!document.activeElement || document.activeElement === document.body)) c2.focus();
       } catch (e) {
         console.error(e);
         busyStamp = false;
-        status.textContent = '사진을 처리하지 못했어요. 다시 시도해 주세요';
+        status.textContent = e && e.message === 'photo-save'
+          ? '사진을 기기에 저장하지 못했어요. 저장 공간을 확인하고 다시 시도해 주세요'
+          : '사진을 처리하지 못했어요. 다시 시도해 주세요';
         cam.disabled = false;
       }
     }
@@ -143,7 +147,10 @@
       }
     }
     el.querySelectorAll('[data-act]').forEach((b) => b.addEventListener('click', async () => {
-      if (b.dataset.act === 'plain') { stampPlain(name, line); return; }
+      if (b.dataset.act === 'plain') {
+        if (!stampPlain(name, line)) { const s2 = $('.status', el); if (s2) s2.textContent = SAVE_FAIL; }
+        return;
+      }
       if (b.dataset.act === 'pick') { pick.click(); return; }
       if (b.dataset.act === 'paste') { pasteImage(); return; }
       if (b.dataset.act === 'card') {
@@ -175,5 +182,5 @@
     if (infoEl && infoCur && (e.bulk || !e.name || e.name === infoCur.name)) renderInfo(infoEl, infoCur);
   });
 
-  Object.assign(C, { CAM_SVG, TRAIN_SVG, legsHTML, routeHTML, infoEl, infoCur, busyStamp, renderInfo });
+  Object.assign(C, { CAM_SVG, TRAIN_SVG, legsHTML, routeHTML, renderInfo });
 })();

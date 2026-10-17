@@ -8,6 +8,7 @@
   const D = {
     draw: $('#draw'), note: $('#note'), live: $('#live'), unvisited: $('#unvisited'),
     panel: $('#panel'), head: $('#panelHead'), board: $('#board'), toggle: $('#panelToggle'),
+    stage: $('.stage'), mapbox: $('.mapbox'), fold: $('#panelFold'), unfold: $('#panelUnfold'),
   };
 
   if (!window.L) { $('#maperr').hidden = false; D.draw.disabled = true; }
@@ -131,9 +132,10 @@
       s.setAttribute('aria-label', C.lineName(LINE[m]) + ' 환승');
       x.append(s);
     });
-    D.head.append(b, tx, x);
+    D.head.append(b, tx, x, D.fold);
     C.renderInfo(D.board, { name, line: n });
     D.panel.hidden = false;
+    paintFold();
     setCollapsed(mobile.matches);   // 모바일은 역 이름만 보이게 접어 두고, 누르면 펼쳐요
     D.panel.scrollTop = 0;
   }
@@ -165,6 +167,7 @@
       begin() {
         D.note.textContent = '';
         D.panel.hidden = true;
+        paintFold();
         if (activeLine) setStyle(activeLine, 'gray');
         activeLine = 0;
         drawDots(0);
@@ -226,8 +229,30 @@
     D.panel.classList.toggle('collapsed', c);
     D.toggle.setAttribute('aria-label', c ? '안내 펼치기' : '안내 접기');
     D.toggle.setAttribute('aria-expanded', String(!c));
-    if (map) setTimeout(() => map.invalidateSize(), 50);
+    if (map) {
+      setTimeout(() => {
+        map.invalidateSize();
+        /* 시트를 펼치면 역이 시트 뒤에 숨지 않게 보이는 지도 가운데로 다시 맞춰요 */
+        if (!c && cur && mobile.matches) focus(cur.name);
+      }, 50);
+    }
   }
+  /* 큰 화면에서 안내 패널 접기·펴기. 접어 두면 지도 위 버튼으로 다시 열어요 */
+  function paintFold() {
+    const folded = !!state.mapFold && !mobile.matches;
+    D.stage.classList.toggle('folded', folded);
+    D.unfold.hidden = !folded || D.panel.hidden;
+    if (cur) D.unfold.textContent = C.label(cur.name) + ' 안내 보기';
+  }
+  function setFold(f) {
+    state.mapFold = f;
+    C.save();
+    paintFold();
+    (f ? D.unfold : D.fold).focus();
+  }
+  D.fold.addEventListener('click', (e) => { e.stopPropagation(); setFold(true); });
+  D.unfold.addEventListener('click', () => setFold(false));
+  mobile.addEventListener('change', paintFold);
   D.toggle.addEventListener('click', () => setCollapsed(!D.panel.classList.contains('collapsed')));
   D.head.addEventListener('click', () => { if (mobile.matches) setCollapsed(!D.panel.classList.contains('collapsed')); });
 
@@ -241,6 +266,9 @@
   }
 
   init();
+  /* 패널이 나타나거나 접혀서 지도 칸 크기가 바뀌면 Leaflet에 알려요 */
+  if (map && window.ResizeObserver) new ResizeObserver(() => map.invalidateSize()).observe(D.mapbox);
+  paintFold();
   const last = C.current();
   if (last && map) {
     settle(last.name, last.line, true);

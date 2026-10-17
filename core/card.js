@@ -36,6 +36,14 @@
     return loadImg('data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg));
   }
 
+  /* 몇 번째 도장인지: 날짜순, 같은 날은 찍은 순서(기록에 들어간 순서)대로. 아직 안 찍은 역은 다음 번호 */
+  function stampOrder(name) {
+    const list = Object.entries(state.stamps).map(([n, s], i) => [n, String(s.d), i])
+      .sort((a, b) => (a[1] < b[1] ? -1 : a[1] > b[1] ? 1 : a[2] - b[2]));
+    const i = list.findIndex((x) => x[0] === name);
+    return i < 0 ? list.length + 1 : i + 1;
+  }
+
   async function makeCard(name, lineN) {
     const st = state.stamps[name] || { d: today(), l: lineN };
     const L = LINE[lineN];
@@ -145,7 +153,7 @@
     }
 
     /* 날짜와 몇 번째 도장인지 */
-    const order = Object.values(state.stamps).filter((s) => String(s.d) <= String(st.d)).length;
+    const order = stampOrder(name);
     g.textAlign = 'left';
     g.textBaseline = 'alphabetic';
     g.fillStyle = '#1c2125';
@@ -182,5 +190,5 @@
     return 'saved';
   }
 
-  Object.assign(C, { makeCard, shareCard });
+  Object.assign(C, { stampOrder, makeCard, shareCard });
 })();

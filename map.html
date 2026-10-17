@@ -40,11 +40,13 @@
         </label>
       </div>
       <p class="note" id="note" role="status"></p>
+      <button type="button" class="panel-unfold" id="panelUnfold" aria-controls="panel" hidden>안내 보기</button>
     </div>
 
     <aside class="panel" id="panel" hidden>
       <button type="button" class="panel-toggle" id="panelToggle" aria-expanded="true" aria-label="안내 접기"><span class="grip" aria-hidden="true"></span></button>
       <div class="panel-head" id="panelHead"></div>
+      <button type="button" class="panel-fold" id="panelFold" aria-controls="panel">안내 접기</button>
       <div class="board" id="board"></div>
     </aside>
   </main>

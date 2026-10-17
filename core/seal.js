@@ -46,5 +46,5 @@
 </svg>`;
   }
 
-  Object.assign(C, { sealId, sealSVG });
+  Object.assign(C, { sealSVG });
 })();

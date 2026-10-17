@@ -66,23 +66,73 @@
   /* ---------- 저장 ---------- */
   const KEY = 'metro-stamp:v2';
   const state = { stamps: {}, unvisited: true, sound: true, voice: false, scope: 'seoul', lines: {}, cur: null, origin: ORIGIN, recentOrigins: [] };
+  const isObj = (x) => !!x && typeof x === 'object' && !Array.isArray(x);
+  /* 'YYYY-MM-DD'이면서 실제로 있는 날짜 */
+  const validDate = (d) => {
+    if (typeof d !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(d)) return false;
+    const t = new Date(d + 'T00:00:00Z');
+    return !isNaN(t) && t.toISOString().slice(0, 10) === d;
+  };
+  /* 도장 하나를 검사해요. 날짜가 틀리면 null, 노선이 그 역의 노선이 아니면 역의 첫 노선으로 고쳐요 */
+  function cleanStamp(name, v) {
+    if (!isObj(v) || !validDate(v.d)) return null;
+    const st = STATIONS.get(RENAMED[name] || name);
+    const out = { d: v.d };
+    const l = st ? st.lines.find((n) => String(n) === String(v.l)) : LINE[v.l] && LINE[v.l].n;
+    if (l !== undefined) out.l = l; else if (st) out.l = st.lines[0];
+    if (v.p) out.p = 1;
+    return out;
+  }
+  /* 저장된 값을 형태별로 검사해서 읽어요. 형식이 틀린 도장은 지우지 않고 quarantine에 따로 둬요 */
+  function load(raw) {
+    if (!isObj(raw)) return;
+    if (isObj(raw.quarantine)) state.quarantine = { ...raw.quarantine };
+    if (isObj(raw.stamps)) {
+      Object.entries(raw.stamps).forEach(([n, v]) => {
+        const s = cleanStamp(n, v);
+        if (s) state.stamps[n] = s;
+        else (state.quarantine = state.quarantine || {})[n] = v;
+      });
+    }
+    ['unvisited', 'sound', 'voice', 'mapFold'].forEach((k) => { if (typeof raw[k] === 'boolean') state[k] = raw[k]; });
+    if (raw.scope === 'all') state.scope = 'all';
+    if (isObj(raw.lines)) Object.entries(raw.lines).forEach(([k, v]) => { if (LINE[k]) state.lines[k] = !!v; });
+    if (isObj(raw.cur) && typeof raw.cur.name === 'string') state.cur = { name: raw.cur.name, line: raw.cur.line };
+    if (typeof raw.origin === 'string') state.origin = raw.origin;
+    if (Array.isArray(raw.recentOrigins)) state.recentOrigins = raw.recentOrigins.filter((n) => typeof n === 'string').slice(0, 4);
+    if (typeof raw.bookLine === 'string' || typeof raw.bookLine === 'number') state.bookLine = raw.bookLine;
+  }
   try {
     const raw = localStorage.getItem(KEY);
     if (raw) {
-      Object.assign(state, JSON.parse(raw));
+      load(JSON.parse(raw));
     } else {
       const old = JSON.parse(localStorage.getItem('metro-stamp:v1') || 'null');
-      if (old && old.stamps) {
-        Object.entries(old.stamps).forEach(([n, v]) => { state.stamps[n] = { d: v.d, l: v.l }; });
-        if (typeof old.unvisited === 'boolean') state.unvisited = old.unvisited;
-        if (typeof old.sound === 'boolean') state.sound = old.sound;
-        if (typeof old.voice === 'boolean') state.voice = old.voice;
-      }
+      if (isObj(old)) load({ stamps: old.stamps, unvisited: old.unvisited, sound: old.sound, voice: old.voice });
     }
-  } catch (e) { /* 저장소를 못 쓰는 환경 */ }
-  const save = () => { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) { /* 무시 */ } };
-  if (!state.lines || typeof state.lines !== 'object') state.lines = {};
-  if (state.scope !== 'all') state.scope = 'seoul';
+  } catch (e) { /* 저장소를 못 쓰는 환경, 또는 읽을 수 없는 값 */ }
+
+  /* 저장에 실패하면(용량 초과, 저장 막힘) 화면 위에 알려요. 다음 저장이 되면 사라져요 */
+  let saveOK = true, warnEl = null;
+  function paintSaveWarn() {
+    if (saveOK) { if (warnEl) warnEl.hidden = true; return; }
+    if (!warnEl) {
+      warnEl = document.createElement('div');
+      warnEl.className = 'save-warn';
+      warnEl.setAttribute('role', 'alert');
+      warnEl.innerHTML = '<p>기록을 이 기기에 저장하지 못했어요. 지금 화면에는 보이지만 새로고침하면 사라질 수 있어요. 기록 › 백업에서 내보내 두세요.</p><button type="button" class="x">닫기</button>';
+      warnEl.querySelector('button').addEventListener('click', () => { warnEl.hidden = true; });
+      document.body.append(warnEl);
+    }
+    warnEl.hidden = false;
+  }
+  /* 기기에 저장했으면 true, 못 했으면 false */
+  const save = () => {
+    let ok = true;
+    try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) { ok = false; }
+    if (ok !== saveOK) { saveOK = ok; paintSaveWarn(); }
+    return ok;
+  };
 
   /* 지금 보고 있는 역: 역명판 ↔ 지도로 넘어가도 이어서 보여 줘요 */
   function current() {
@@ -184,10 +234,40 @@
     if (u) { URL.revokeObjectURL(u); urls.delete(name); }
   }
 
+  /* ---------- 창 (서랍 · 출발역 · 스티커 다듬기) ---------- */
+  /* 열려 있는 동안 Tab은 창 안에서만 돌고, Escape로 닫고, 뒤 페이지는 스크롤되지 않아요.
+     돌려준 함수로 풀면 창을 열었던 버튼으로 포커스가 돌아가요 */
+  const FOCUSABLE = 'button:not([disabled]), a[href], input:not([hidden]):not([disabled]):not([type="hidden"]), select, textarea, summary, [tabindex]:not([tabindex="-1"])';
+  let locks = 0;
+  function modal(box, close) {
+    const back = document.activeElement;
+    locks++;
+    document.documentElement.classList.add('locked');
+    const onKey = (e) => {
+      if (e.key === 'Escape') { e.preventDefault(); close(); return; }
+      if (e.key !== 'Tab') return;
+      const items = [...box.querySelectorAll(FOCUSABLE)].filter((x) => x.getClientRects().length);
+      if (!items.length) { e.preventDefault(); return; }
+      const first = items[0], last = items[items.length - 1], at = document.activeElement;
+      if (e.shiftKey && (at === first || !box.contains(at))) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && (at === last || !box.contains(at))) { e.preventDefault(); first.focus(); }
+    };
+    document.addEventListener('keydown', onKey);
+    let done = false;
+    return () => {
+      if (done) return;
+      done = true;
+      document.removeEventListener('keydown', onKey);
+      locks = Math.max(0, locks - 1);
+      if (!locks) document.documentElement.classList.remove('locked');
+      if (back && back.isConnected && back.focus) back.focus();
+    };
+  }
+
   /* 오프라인에서도 열리게 사이트 파일을 기기에 저장해 둬요 (sw.js) */
   if ('serviceWorker' in navigator && window.isSecureContext) {
     window.addEventListener('load', () => { navigator.serviceWorker.register('sw.js').catch(() => {}); });
   }
 
-  Object.assign(C, { LINES, EN, CURATED, RENAMED, $, reduced, sleep, rand, enc, esc, REGION, ACCESS, LINE, ORIGIN, lineName, isText, lineShort, lineEn, label, ro, STATIONS, lineOrder, trackFor, neighbors, stationQuery, mapLinks, today, dotDate, handlers, on, emit, KEY, state, save, current, setCurrent, origin, setOrigin, lineOn, inScope, activeLines, pool, renamedPhotos, DB, photosReady, urls, photoURL, dropURL });
+  Object.assign(C, { LINES, EN, CURATED, RENAMED, $, reduced, sleep, rand, enc, esc, REGION, ACCESS, LINE, ORIGIN, lineName, isText, lineShort, lineEn, label, ro, STATIONS, lineOrder, trackFor, neighbors, stationQuery, mapLinks, today, dotDate, handlers, on, emit, KEY, state, isObj, validDate, cleanStamp, save, modal, current, setCurrent, origin, setOrigin, lineOn, inScope, activeLines, pool, renamedPhotos, DB, photosReady, urls, photoURL, dropURL });
 })();
