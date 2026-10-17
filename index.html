@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>역 도장깨기</title>
+  <meta name="description" content="서울 지하철 1~9호선 역을 무작위로 뽑아 다녀오고, 도장으로 남기는 개인 기록 페이지">
+  <meta name="theme-color" content="#e2e7e4">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='15' fill='%2300a84d'/%3E%3Ctext x='16' y='22.5' font-size='18' font-weight='700' text-anchor='middle' fill='white' font-family='sans-serif'%3E역%3C/text%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Gothic+A1:wght@400;600;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="wrap">
+    <header class="top">
+      <h1>역 도장깨기</h1>
+      <p class="count" id="count"></p>
+      <div class="toggles">
+        <button type="button" class="tog" id="tSound" aria-pressed="true">소리</button>
+        <button type="button" class="tog" id="tVoice" aria-pressed="false">안내방송</button>
+      </div>
+    </header>
+
+    <main>
+      <section class="platform" aria-label="뽑은 역">
+        <div class="sign" id="sign" data-state="idle" aria-hidden="true">
+          <div class="sign-band"></div>
+          <div class="sign-body">
+            <div class="nb prev" id="prev"><i class="tri"></i><span id="prevName"></span></div>
+            <div class="core">
+              <div class="badge" id="badge"><span id="badgeNum"></span></div>
+              <div class="names">
+                <div class="ko-win"><div class="ko" id="ko">다음 역은</div></div>
+                <div class="en" id="en">Next station</div>
+              </div>
+            </div>
+            <div class="nb next" id="next"><span id="nextName"></span><i class="tri"></i></div>
+          </div>
+          <div class="xfer" id="xfer"></div>
+        </div>
+
+        <div class="controls">
+          <button type="button" class="draw" id="draw">역 뽑기</button>
+          <label class="switch">
+            <input type="checkbox" id="unvisited" checked>
+            <span class="box" aria-hidden="true"></span>
+            <span>안 가본 역에서만 뽑기</span>
+          </label>
+        </div>
+        <p class="note" id="note" role="status"></p>
+      </section>
+
+      <section class="board" id="board" hidden aria-label="이 역 안내"></section>
+
+      <section class="record" aria-labelledby="recordTitle">
+        <div class="record-head">
+          <h2 id="recordTitle">도장 기록</h2>
+          <p>호선을 열어 역을 누르면 위 역명판에 띄워요.</p>
+        </div>
+        <div id="record"></div>
+      </section>
+    </main>
+
+    <footer class="foot">
+      <p>기록은 이 브라우저에만 저장돼요. 기기를 바꾸기 전에 백업해 두세요.</p>
+      <div class="foot-actions">
+        <button type="button" id="export">기록 내보내기</button>
+        <button type="button" id="import">기록 불러오기</button>
+        <input type="file" id="file" accept="application/json,.json" hidden>
+      </div>
+    </footer>
+  </div>
+
+  <div class="sr" id="live" aria-live="polite"></div>
+  <noscript><p style="padding:24px">이 페이지는 자바스크립트가 켜져 있어야 동작해요.</p></noscript>
+
+  <script src="data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
