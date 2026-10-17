@@ -5,7 +5,7 @@
   const {
     LINES, $, reduced, esc, lineName, isText, lineShort, label, STATIONS, today, on, emit, state, save,
     current, lineOn, inScope, activeLines, pool, photoURL, tts, unlockVoice, announce, exportJSON,
-    importJSON, sealSVG, voiceName,
+    importJSON, sealSVG, voiceName, dotDate,
   } = C;
 
   /* ---------- 기록 서랍 ---------- */
@@ -24,8 +24,7 @@
 <div class="drawer-head"><h2 id="drawerTitle">도장 기록</h2><button type="button" class="x" aria-label="닫기">닫기</button></div>
 <div class="drawer-body">
   <p class="sum" id="drawerSum"></p>
-  <div class="gallery" id="gallery"></div>
-  <div id="record"></div>
+  <div class="book" id="book"></div>
   <section class="settings">
     <h3>설정</h3>
     <label class="switch"><input type="checkbox" id="optSound"><span class="box" aria-hidden="true"></span><span>소리</span></label>
@@ -58,7 +57,6 @@
 </div>`;
     document.body.append(scrim, dr);
 
-    const openLines = new Set();
     let isOpen = false;
 
     const optSound = $('#optSound', dr), optVoice = $('#optVoice', dr);
@@ -108,66 +106,62 @@
       linePick.append(lab);
     });
 
-    async function renderGallery() {
-      const box = $('#gallery', dr);
-      const names = Object.keys(state.stamps).filter((n) => STATIONS.has(n));
-      if (!names.length) { box.innerHTML = '<p class="empty">아직 도장이 없어요. 역을 뽑고 다녀오세요.</p>'; return; }
-      names.sort((a, b) => String(state.stamps[b].d).localeCompare(String(state.stamps[a].d)));
-      box.replaceChildren();
-      for (const n of names) {
+    /* 도장첩: 노선을 고르면 그 노선의 역마다 도장 칸이 있고, 다녀온 역은 스티커나 도장으로 채워져요 */
+    let bookTurn = 0;
+    function renderBook() {
+      const box = $('#book', dr);
+      const lines = activeLines().filter((L) => L.all.some(inScope));
+      if (!lines.length) { box.innerHTML = ''; return; }
+      const cur = current();
+      const pickN = [state.bookLine, cur && cur.line].find((n) => lines.some((L) => String(L.n) === String(n)));
+      const L = lines.find((x) => String(x.n) === String(pickN)) || lines[0];
+      const all = L.all.filter(inScope);
+      const count = (x) => x.all.filter((n) => inScope(n) && state.stamps[n]).length;
+      const tabs = lines.map((x) => {
+        const total = x.all.filter(inScope).length;
+        return `<button type="button" class="book-tab" data-line="${esc(x.n)}" aria-pressed="${x === L}" aria-label="${esc(lineName(x))}, 도장 ${count(x)} / ${total}">` +
+          `<span class="rbadge${isText(x) ? ' txt' : ''}" style="background:${x.color};color:${x.ink}">${esc(lineShort(x))}</span><small>${count(x)}/${total}</small></button>`;
+      }).join('');
+      const slots = all.map((n) => {
         const st = state.stamps[n];
-        const tile = document.createElement('button');
-        tile.type = 'button';
-        tile.className = 'tile';
-        const u = st.p ? await photoURL(n) : null;
-        tile.innerHTML = `<span class="tile-img">${u ? `<img src="${u}" alt="">` : sealSVG(n, st.l || STATIONS.get(n).lines[0], st.d)}</span><span class="tile-name">${esc(label(n))}</span>`;
-        tile.addEventListener('click', () => { close(); opts.onSelect(n, st.l || STATIONS.get(n).lines[0]); });
-        box.append(tile);
-      }
-    }
-
-    function renderRecord() {
-      const box = $('#record', dr);
-      box.replaceChildren();
-      activeLines().forEach((L) => {
-        const all = L.all.filter(inScope);
-        if (!all.length) return;
-        const stamped = all.filter((n) => state.stamps[n]).length;
-        const wrap = document.createElement('div');
-        wrap.className = 'rline';
-        wrap.style.setProperty('--c', L.color);
-        wrap.style.setProperty('--k', L.ink);
-        const o = openLines.has(L.n);
-        wrap.innerHTML = `
-          <button type="button" class="rhead" aria-expanded="${o}" aria-controls="rc${L.n}">
-            <span class="rbadge${isText(L) ? ' txt' : ''}" style="background:${L.color};color:${L.ink}" aria-label="${esc(lineName(L))}">${esc(lineShort(L))}</span>
-            <span class="rbar" aria-hidden="true">${all.map((n) => `<i class="${state.stamps[n] ? 'on' : ''}"></i>`).join('')}</span>
-            <span class="rcnt">${stamped} / ${all.length}</span>
-          </button>
-          <div class="rchips" id="rc${L.n}" ${o ? '' : 'hidden'}>
-            ${all.map((n) => `<button type="button" class="chip ${state.stamps[n] ? 'on' : ''}" data-n="${esc(n)}">${esc(label(n))}</button>`).join('')}
-          </div>`;
-        const head = $('.rhead', wrap), chipsBox = $('.rchips', wrap);
-        head.addEventListener('click', () => {
-          const open = chipsBox.hidden;
-          chipsBox.hidden = !open;
-          head.setAttribute('aria-expanded', String(open));
-          if (open) openLines.add(L.n); else openLines.delete(L.n);
-        });
-        chipsBox.addEventListener('click', (e) => {
-          const b = e.target.closest('.chip');
-          if (b) { close(); opts.onSelect(b.dataset.n, L.n); }
-        });
-        box.append(wrap);
+        const inner = st ? (st.p ? '' : sealSVG(n, L.n, st.d)) : '';
+        return `<button type="button" class="slot${st ? ' on' : ''}" data-n="${esc(n)}" aria-label="${esc(label(n))}${st ? ', ' + esc(dotDate(st.d)) + ' 도장' : ', 아직 안 감'}">` +
+          `<span class="slot-ring" aria-hidden="true">${inner}</span><span class="slot-name">${esc(label(n))}</span></button>`;
+      }).join('');
+      box.innerHTML = `<div class="book-tabs" role="group" aria-label="노선 고르기">${tabs}</div>
+        <section class="book-page" data-line="${esc(L.n)}" style="--c:${L.color};--k:${L.ink}">
+          <h3 class="book-title"><span class="rbadge${isText(L) ? ' txt' : ''}" style="background:${L.color};color:${L.ink}">${esc(lineShort(L))}</span>${esc(lineName(L))} 도장첩<span class="book-cnt">${count(L)} / ${all.length}</span></h3>
+          ${count(L) ? '' : '<p class="book-empty">이 노선은 아직 도장이 없어요. 역을 뽑고 다녀와서 도장을 찍으면 여기에 모여요.</p>'}
+          <div class="book-grid">${slots}</div>
+        </section>`;
+      const on = $('.book-tab[aria-pressed="true"]', box);
+      if (on && on.scrollIntoView) on.scrollIntoView({ block: 'nearest', inline: 'center' });
+      /* 사진 스티커는 저장소에서 꺼내 와서 채워요 */
+      const my = ++bookTurn;
+      all.filter((n) => state.stamps[n] && state.stamps[n].p).forEach(async (n) => {
+        const u = await photoURL(n);
+        if (my !== bookTurn || !u) return;
+        const ring = box.querySelector(`.slot[data-n="${CSS.escape(n)}"] .slot-ring`);
+        if (ring) ring.innerHTML = `<img src="${u}" alt="">`;
       });
     }
+    dr.addEventListener('click', (e) => {
+      const tab = e.target.closest('.book-tab');
+      if (tab) { state.bookLine = tab.dataset.line; save(); renderBook(); return; }
+      const slot = e.target.closest('.slot');
+      if (slot) {
+        /* 지금 보고 있는 노선으로 그 역을 열어요 */
+        const page = LINES.find((x) => String(x.n) === $('.book-page', dr).dataset.line);
+        close();
+        opts.onSelect(slot.dataset.n, page.n);
+      }
+    });
 
     function renderAll() {
       const p = pool();
       const done = [...p].filter((n) => state.stamps[n]).length;
       $('#drawerSum', dr).textContent = '도장 ' + done + ' / ' + p.size + '역' + (p.size ? '' : ' · 설정에서 노선을 켜 주세요');
-      renderRecord();
-      renderGallery();
+      renderBook();
     }
 
     function open() {
