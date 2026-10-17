@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>역 좌표 검사</title>
+  <meta name="robots" content="noindex">
+  <style>
+    :root { --ink: #1c2125; --muted: #566067; --line: #d5dad8; --warn: #fff3cd; --bad: #fde2e1; }
+    * { box-sizing: border-box; }
+    body { margin: 0; padding: 24px 16px 60px; font: 15px/1.55 system-ui, -apple-system, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; color: var(--ink); background: #f6f7f6; }
+    main { max-width: 980px; margin: 0 auto; }
+    h1 { margin: 0 0 6px; font-size: 1.4rem; }
+    p { margin: 0 0 12px; color: var(--muted); }
+    .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 16px 0; }
+    input[type=text] { flex: 1 1 260px; padding: 10px 12px; font: inherit; border: 1.5px solid #8a9398; border-radius: 6px; }
+    button { padding: 10px 16px; font: inherit; font-weight: 700; color: #fff; background: #23292d; border: 0; border-radius: 6px; cursor: pointer; }
+    button:disabled { opacity: .45; cursor: default; }
+    button.sec { color: var(--ink); background: #fff; border: 1.5px solid #8a9398; }
+    :focus-visible { outline: 3px solid #1a73e8; outline-offset: 2px; }
+    #msg { min-height: 1.5em; font-weight: 600; color: var(--ink); }
+    #msg.err { color: #b3261e; }
+    progress { width: 100%; height: 10px; }
+    .sum { margin: 12px 0; font-weight: 600; }
+    .table-wrap { overflow-x: auto; background: #fff; border: 1px solid var(--line); border-radius: 6px; }
+    table { width: 100%; border-collapse: collapse; font-size: .9rem; }
+    th, td { padding: 6px 10px; text-align: left; border-bottom: 1px solid var(--line); white-space: nowrap; vertical-align: top; }
+    td.names { white-space: normal; min-width: 220px; color: var(--muted); }
+    td.num { text-align: right; font-variant-numeric: tabular-nums; }
+    tr.far td { background: var(--warn); }
+    tr.miss td { background: var(--bad); }
+  </style>
+</head>
+<body>
+<main>
+  <h1>역 좌표 검사</h1>
+  <p>카카오 장소 검색(지하철역)으로 geo.js 좌표를 확인하는 일회용 도구예요. 키는 이 화면에서만 쓰고 어디에도 저장하지 않아요.</p>
+  <p>카카오 디벨로퍼스에서 이 사이트 도메인을 Web 플랫폼으로 등록한 앱의 <b>JavaScript 키</b>를 넣으세요. REST API 키나 Admin 키는 넣지 마세요.</p>
+
+  <div class="row">
+    <input type="text" id="key" placeholder="카카오 JavaScript 키" autocomplete="off" spellcheck="false" aria-label="카카오 JavaScript 키">
+    <button type="button" id="start">검사 시작</button>
+  </div>
+  <progress id="prog" max="1" value="0" hidden></progress>
+  <p id="msg" role="status"></p>
+
+  <div id="out" hidden>
+    <p class="sum" id="sum"></p>
+    <div class="row">
+      <button type="button" class="sec" id="dlJson">결과 JSON 내려받기 (geo-kakao.json)</button>
+      <button type="button" class="sec" id="dlGeo">새 geo.js 내려받기</button>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>역</th><th>호선</th><th class="num">차이(m)</th><th>기존</th><th>카카오</th><th>찾은 장소</th></tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </div>
+  </div>
+</main>
+
+<script src="../data.js"></script>
+<script src="../geo.js"></script>
+<script>
+(() => {
+  'use strict';
+  const { LINES, GEO } = window.METRO;
+  const $ = (s) => document.querySelector(s);
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const query = (name) => (name.endsWith('역') ? name : name + '역');
+  const FAR = 150;
+
+  const stations = new Map();
+  LINES.forEach((L) => L.tracks.forEach((t) => t.s.forEach((n) => {
+    if (!stations.has(n)) stations.set(n, []);
+    if (!stations.get(n).includes(L.n)) stations.get(n).push(L.n);
+  })));
+
+  function meters(a, b) {
+    const r = Math.PI / 180, dl = (b[0] - a[0]) * r, dg = (b[1] - a[1]) * r;
+    const x = Math.sin(dl / 2) ** 2 + Math.cos(a[0] * r) * Math.cos(b[0] * r) * Math.sin(dg / 2) ** 2;
+    return Math.round(12742000 * Math.asin(Math.sqrt(x)));
+  }
+  const say = (t, err) => { $('#msg').textContent = t; $('#msg').classList.toggle('err', !!err); };
+
+  let geoSource = '';
+  fetch('../geo.js').then((r) => r.text()).then((t) => { geoSource = t; }).catch(() => {});
+
+  function loadSDK(key) {
+    return new Promise((res, rej) => {
+      if (window.kakao && window.kakao.maps && window.kakao.maps.services) { res(); return; }
+      const s = document.createElement('script');
+      s.src = 'https://dapi.kakao.com/v2/maps/sdk.js?appkey=' + encodeURIComponent(key) + '&libraries=services&autoload=false';
+      const t = setTimeout(() => rej(new Error('timeout')), 10000);
+      s.onerror = () => { clearTimeout(t); rej(new Error('script')); };
+      s.onload = () => {
+        if (!window.kakao || !window.kakao.maps || !window.kakao.maps.load) { clearTimeout(t); rej(new Error('sdk')); return; }
+        window.kakao.maps.load(() => { clearTimeout(t); res(); });
+      };
+      document.head.append(s);
+    });
+  }
+
+  /* 장소 이름 정리: 괄호 안과 공백을 빼고 비교해요. 예) "총신대입구(이수)역 4호선" → "총신대입구역4호선" */
+  const clean = (s) => String(s).replace(/\([^)]*\)/g, '').replace(/\s+/g, '');
+
+  function search(places, kind, arg, opts) {
+    return new Promise((res) => {
+      places[kind](arg, (data, status) => res({ data: data || [], status }), opts);
+    });
+  }
+
+  async function checkOne(places, name, lines) {
+    const S = window.kakao.maps.services;
+    const old = GEO[name];
+    const loc = new window.kakao.maps.LatLng(old[0], old[1]);
+    const q = query(name);
+    const r = await search(places, 'keywordSearch', q, { category_group_code: 'SW8', location: loc, radius: 5000, sort: S.SortBy.DISTANCE });
+    if (r.status === S.Status.ERROR) return { name, lines, old, error: true };
+    const named = r.data.filter((p) => clean(p.place_name).startsWith(q));
+    const onLine = named.filter((p) => lines.some((n) => clean(p.place_name).includes(n + '호선')));
+    const use = onLine.length ? onLine : named.slice(0, 1);
+    if (!use.length) {
+      const near = await search(places, 'categorySearch', 'SW8', { location: loc, radius: 800, sort: S.SortBy.DISTANCE });
+      return { name, lines, old, now: null, hint: near.data.slice(0, 4).map((p) => p.place_name) };
+    }
+    const lat = use.reduce((a, p) => a + Number(p.y), 0) / use.length;
+    const lng = use.reduce((a, p) => a + Number(p.x), 0) / use.length;
+    const now = [Number(lat.toFixed(4)), Number(lng.toFixed(4))];
+    return { name, lines, old, now, dist: meters(old, now), matched: use.map((p) => p.place_name), lineMatch: onLine.length > 0 };
+  }
+
+  let results = [];
+
+  function render() {
+    const found = results.filter((r) => r.now);
+    const miss = results.filter((r) => !r.now);
+    const far = found.filter((r) => r.dist > FAR);
+    const ds = found.map((r) => r.dist).sort((a, b) => a - b);
+    const med = ds.length ? ds[Math.floor(ds.length / 2)] : 0;
+    $('#sum').textContent = `${results.length}역 중 ${found.length}역 찾음 · 못 찾음 ${miss.length} · ${FAR}m 넘게 차이 ${far.length} · 차이 중앙값 ${med}m`;
+    const sorted = [...miss, ...found.sort((a, b) => b.dist - a.dist)];
+    $('#rows').innerHTML = sorted.map((r) => {
+      const cls = !r.now ? 'miss' : r.dist > FAR ? 'far' : '';
+      const names = r.now ? r.matched.join(', ') + (r.lineMatch ? '' : ' (호선 불일치)') : (r.error ? '검색 오류' : '못 찾음' + (r.hint && r.hint.length ? ' · 근처: ' + r.hint.join(', ') : ''));
+      return `<tr class="${cls}"><td>${esc(r.name)}</td><td>${r.lines.join(',')}</td><td class="num">${r.now ? r.dist : '-'}</td>` +
+        `<td>${r.old.join(', ')}</td><td>${r.now ? r.now.join(', ') : '-'}</td><td class="names">${esc(names)}</td></tr>`;
+    }).join('');
+    $('#out').hidden = false;
+  }
+
+  function download(name, text, type) {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([text], { type }));
+    a.download = name;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1500);
+  }
+
+  function newGeoSource() {
+    const byName = new Map(results.filter((r) => r.now).map((r) => [r.name, r.now]));
+    return geoSource.replace(/([가-힣A-Za-z0-9]+):(\d+\.\d+),(\d+\.\d+)/g, (m, n) => {
+      const v = byName.get(n);
+      return v ? `${n}:${v[0]},${v[1]}` : m;
+    });
+  }
+
+  $('#start').addEventListener('click', async () => {
+    const key = $('#key').value.trim();
+    if (!key) { say('JavaScript 키를 넣어 주세요.', true); $('#key').focus(); return; }
+    $('#start').disabled = true;
+    say('카카오 지도 SDK 불러오는 중…');
+    try {
+      await loadSDK(key);
+    } catch (e) {
+      say('카카오 SDK를 불러오지 못했어요. JavaScript 키가 맞는지, 이 사이트 도메인(' + location.origin + ')이 앱의 Web 플랫폼에 등록돼 있는지 확인해 주세요.', true);
+      $('#start').disabled = false;
+      return;
+    }
+    const places = new window.kakao.maps.services.Places();
+    const list = [...stations.entries()];
+    const prog = $('#prog');
+    prog.hidden = false;
+    prog.max = list.length;
+    results = [];
+    let errors = 0;
+    for (let i = 0; i < list.length; i++) {
+      const [name, lines] = list[i];
+      say(`검사 중 ${i + 1} / ${list.length} · ${name}`);
+      const r = await checkOne(places, name, lines);
+      if (r.error) errors++;
+      results.push(r);
+      prog.value = i + 1;
+      if (errors >= 5 && errors === results.length) {
+        say('검색이 계속 실패해요. 키의 사용량 제한이나 카카오맵 사용 설정을 확인해 주세요.', true);
+        break;
+      }
+      await sleep(120);
+    }
+    render();
+    say('끝났어요. 결과 JSON을 내려받아 대화에 올려 주세요.');
+    $('#start').disabled = false;
+  });
+
+  $('#dlJson').addEventListener('click', () => {
+    const data = { checkedAt: new Date().toISOString(), source: 'kakao places SW8', results };
+    download('geo-kakao.json', JSON.stringify(data, null, 1), 'application/json');
+  });
+  $('#dlGeo').addEventListener('click', () => {
+    if (!geoSource) { say('geo.js 원문을 읽지 못했어요.', true); return; }
+    download('geo.js', newGeoSource(), 'text/javascript');
+  });
+})();
+</script>
+</body>
+</html>

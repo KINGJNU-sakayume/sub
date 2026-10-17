@@ -31,6 +31,8 @@ jobs:
         run: |
           mkdir _site
           cp index.html map.html common.css sign.css map.css data.js geo.js core.js sign.js map.js _site/
+          mkdir _site/tools
+          cp tools/geo-check.html _site/tools/
 
       - uses: actions/configure-pages@v5
 
