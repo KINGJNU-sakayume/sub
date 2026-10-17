@@ -25,13 +25,12 @@ jobs:
 
       - name: Check scripts
         run: |
-          node --check data.js
-          node --check app.js
+          for f in data.js geo.js core.js sign.js map.js; do node --check "$f"; done
 
       - name: Collect site files
         run: |
           mkdir _site
-          cp index.html style.css app.js data.js _site/
+          cp index.html map.html common.css sign.css map.css data.js geo.js core.js sign.js map.js _site/
 
       - uses: actions/configure-pages@v5
 
