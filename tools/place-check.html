@@ -35,11 +35,17 @@
 <main>
   <h1>근처 장소 출구 검사</h1>
   <p>data.js의 "이 역 근처" 장소마다 카카오 장소 검색으로 위치를 찾고, 가장 가까운 역 출구와 도보 시간(어림)을 계산해 access.js를 만드는 도구예요. 키는 이 화면에서만 쓰고 어디에도 저장하지 않아요.</p>
-  <p>역 좌표 검사(geo-check)와 같은 <b>카카오 JavaScript 키</b>를 넣으세요. 도보 시간은 출구에서 장소까지 직선거리 × 1.3 ÷ 분당 70m 어림이라 실제와 몇 분 다를 수 있어요.</p>
+  <p>1단계: 역 좌표 검사(geo-check)와 같은 <b>카카오 JavaScript 키</b>로 장소 위치를 찾아요. 예전에 내려받은 결과 JSON이 있으면 불러와서 이 단계를 건너뛸 수 있어요.</p>
+  <p>2단계: 역 출구 위치와 번호는 <b>OpenStreetMap</b>에서 받아요(키 필요 없음). 도보 시간은 출구에서 장소까지 직선거리 × 1.3 ÷ 분당 70m 어림이에요.</p>
 
   <div class="row">
     <input type="text" id="key" placeholder="카카오 JavaScript 키" autocomplete="off" spellcheck="false" aria-label="카카오 JavaScript 키">
-    <button type="button" id="start">검사 시작</button>
+    <button type="button" id="start">1단계: 장소 찾기</button>
+  </div>
+  <div class="row">
+    <button type="button" class="sec" id="load">예전 결과 JSON 불러오기</button>
+    <input type="file" id="file" accept="application/json,.json" hidden>
+    <button type="button" id="osm" disabled>2단계: 출구 찾기 (OpenStreetMap)</button>
   </div>
   <progress id="prog" max="1" value="0" hidden></progress>
   <p id="msg" role="status"></p>
@@ -52,7 +58,7 @@
     </div>
     <div class="table-wrap">
       <table>
-        <thead><tr><th>역</th><th>장소</th><th class="num">역에서(m)</th><th>출구</th><th class="num">도보(분)</th><th>찾은 장소</th></tr></thead>
+        <thead><tr><th>역</th><th>장소</th><th class="num">역에서(m)</th><th>출구</th><th class="num">출구에서(m)</th><th class="num">역 출구 수</th><th>표시</th><th>찾은 장소</th></tr></thead>
         <tbody id="rows"></tbody>
       </table>
     </div>
@@ -72,8 +78,14 @@
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const base = (name) => name.replace(/\(.+\)$/, '').replace(/역$/, '');
   const query = (name) => base(name) + '역';
-  const FAR = 1500;          // 역 중심에서 이보다 멀면 노란 줄(확인 필요), access.js에는 넣지 않아요
+  const FAR = 1200;          // 역 중심에서 이보다 멀면 '근처'가 아니라서 access.js에 넣지 않아요
   const WALK = (m) => Math.max(1, Math.round((m * 1.3) / 70));
+  /* 좌표가 한 점이 아닌 곳: 하천·산·숲길처럼 긴 곳은 빼고, 공원·궁처럼 넓은 곳은 '몇 번 출구 쪽'만 */
+  const LINEAR = /(천|산|강|한강공원|자락길|숲길|둘레길)$/;
+  const AREA = /(공원|궁|릉|묘원|성지|섬|대학교|캠퍼스|시민의숲|꿈의숲|서울숲|마을)$/;
+  /* 카카오가 다른 곳을 찾은 장소 ('역|장소'): 표시하지 않아요 */
+  const SKIP = new Set(['신사|신사동 간장게장 골목']);
+  const EXIT_NEAR = 600;     // 출구는 가장 가까운 역에 붙이고, 그 역에서 이 거리 안의 것만 써요
 
   function meters(a, b) {
     const r = Math.PI / 180, dl = (b[0] - a[0]) * r, dg = (b[1] - a[1]) * r;
@@ -144,26 +156,104 @@
     let best = null;
     exits.forEach((e) => { const m = meters(e.at, at); if (!best || m < best.m) best = { no: e.no, m }; });
     const m = best ? best.m : fromStation;
-    return { station, place: p[1], found: hit.place_name, at, fromStation, exit: best ? best.no : '', walk: WALK(m), exitsKnown: exits.length };
+    return { station, place: p[1], found: hit.place_name, category: hit.category_name || '', at, fromStation, exit: best ? best.no : '', walk: WALK(m), exitsKnown: exits.length };
   }
 
   let results = [];
-  const usable = (r) => !r.miss && !r.error && r.fromStation <= FAR;
+  let osmDone = false;
+
+  /* 화면에 보일 값: [출구, 도보 분] · 넓은 곳은 [출구, 0] = 'N번 출구 쪽' · 넣지 않으면 null */
+  function shown(r) {
+    if (r.miss || r.error || r.fromStation > FAR || LINEAR.test(r.place) || SKIP.has(r.station + '|' + r.place)) return null;
+    const exit = osmDone ? r.osmExit : '';   // 카카오 출구 검색은 역마다 몇 개밖에 안 나와서 쓰지 않아요
+    const dist = osmDone ? r.osmExitDist : null;
+    if (AREA.test(r.place)) return exit ? [exit, 0] : null;
+    if (exit && dist != null) return [exit, WALK(dist)];
+    return ['', WALK(r.fromStation)];
+  }
+  const label = (v) => (!v ? '넣지 않음' : v[1] === 0 ? v[0] + '번 출구 쪽' : (v[0] ? v[0] + '번 출구 ' : '역에서 ') + '도보 약 ' + v[1] + '분');
 
   function render() {
-    const ok = results.filter(usable);
-    const far = results.filter((r) => !r.miss && !r.error && r.fromStation > FAR);
-    const miss = results.filter((r) => r.miss || r.error);
-    const noExit = ok.filter((r) => !r.exit).length;
-    $('#sum').textContent = `${results.length}곳 중 ${ok.length}곳 반영 · ${FAR}m 넘게 멂 ${far.length} · 못 찾음 ${miss.length} · 출구를 못 찾아 역 기준 ${noExit}`;
-    const sorted = [...miss, ...far, ...ok];
-    $('#rows').innerHTML = sorted.map((r) => {
-      const cls = r.miss || r.error ? 'miss' : r.fromStation > FAR ? 'far' : '';
+    const vals = results.map(shown);
+    const used = vals.filter(Boolean).length;
+    const miss = results.filter((r) => r.miss || r.error).length;
+    const far = results.filter((r) => !r.miss && !r.error && r.fromStation > FAR).length;
+    const noExit = vals.filter((v) => v && !v[0]).length;
+    $('#sum').textContent = `${results.length}곳 중 ${used}곳 표시 · ${FAR}m 넘게 멂 ${far} · 못 찾음 ${miss} · 출구 없이 역 기준 ${noExit}` +
+      (osmDone ? '' : ' · 아직 2단계(출구 찾기) 전이에요');
+    const order = results.map((r, i) => i).sort((a, b) => (vals[a] ? 1 : 0) - (vals[b] ? 1 : 0));
+    $('#rows').innerHTML = order.map((i) => {
+      const r = results[i], v = vals[i];
+      const cls = r.miss || r.error ? 'miss' : !v ? 'far' : '';
       const found = r.error ? r.error : r.miss ? '못 찾음' : r.found;
+      const ex = osmDone ? r.osmExit : r.exit;
       return `<tr class="${cls}"><td>${esc(r.station)}</td><td>${esc(r.place)}</td><td class="num">${r.fromStation != null ? r.fromStation : '-'}</td>` +
-        `<td>${r.exit ? esc(r.exit) + '번' : '-'}</td><td class="num">${r.walk || '-'}</td><td class="names">${esc(found)}</td></tr>`;
+        `<td>${ex ? esc(ex) + '번' : '-'}</td><td class="num">${osmDone && r.osmExitDist != null ? r.osmExitDist : '-'}</td>` +
+        `<td class="num">${osmDone ? (r.osmExitsKnown || 0) : (r.exitsKnown || 0)}</td><td>${esc(label(v))}</td><td class="names">${esc(found)}</td></tr>`;
     }).join('');
     $('#out').hidden = false;
+    $('#osm').disabled = !results.length;
+  }
+
+  /* OpenStreetMap 지하철 출구(railway=subway_entrance)를 한 번에 받아 가장 가까운 역에 나눠 줘요 */
+  const OVERPASS = ['https://overpass-api.de/api/interpreter', 'https://overpass.kumi.systems/api/interpreter', 'https://maps.mail.ru/osm/tools/overpass/api/interpreter'];
+  async function osmEntrances() {
+    const bb = '(37.15,126.55,38.0,127.8)';
+    const q = `[out:json][timeout:120];(node["railway"="subway_entrance"]${bb};node["railway"="train_station_entrance"]${bb};);out;`;
+    for (const u of OVERPASS) {
+      try {
+        const r = await fetch(u, { method: 'POST', body: 'data=' + encodeURIComponent(q), headers: { 'Content-Type': 'application/x-www-form-urlencoded' } });
+        if (!r.ok) continue;
+        const j = await r.json();
+        if (j && j.elements) return j.elements;
+      } catch (e) { /* 다음 서버 */ }
+    }
+    throw new Error('overpass');
+  }
+  const exitNo = (t) => {
+    const m = String(t.ref || '').match(/\d+(?:-\d+)?/) || String(t.name || t['name:ko'] || '').match(/(\d+(?:-\d+)?)\s*번/);
+    return m ? (m[1] || m[0]) : '';
+  };
+  function assignExits(nodes) {
+    const stations = Object.entries(GEO);
+    const byStation = new Map();
+    nodes.forEach((n) => {
+      const no = exitNo(n.tags || {});
+      if (!no) return;
+      const at = [n.lat, n.lon];
+      let best = null, bd = Infinity;
+      stations.forEach(([name, g]) => { const d = meters(g, at); if (d < bd) { bd = d; best = name; } });
+      if (bd > EXIT_NEAR) return;
+      const list = byStation.get(best) || [];
+      if (!list.some((e) => e.no === no && meters(e.at, at) < 30)) list.push({ no, at });
+      byStation.set(best, list);
+    });
+    return byStation;
+  }
+  async function findExits() {
+    $('#osm').disabled = true;
+    say('OpenStreetMap에서 출구 받는 중… (수십 초 걸릴 수 있어요)');
+    let nodes;
+    try {
+      nodes = await osmEntrances();
+    } catch (e) {
+      say('OpenStreetMap 서버에 연결하지 못했어요. 잠시 뒤 다시 눌러 주세요.', true);
+      $('#osm').disabled = false;
+      return;
+    }
+    const byStation = assignExits(nodes);
+    results.forEach((r) => {
+      if (r.miss || r.error || !r.at) return;
+      const exits = byStation.get(r.station) || [];
+      let best = null;
+      exits.forEach((e) => { const m = meters(e.at, r.at); if (!best || m < best.m) best = { no: e.no, m }; });
+      r.osmExit = best ? best.no : '';
+      r.osmExitDist = best ? best.m : null;
+      r.osmExitsKnown = new Set(exits.map((e) => e.no)).size;
+    });
+    osmDone = true;
+    render();
+    say(`출구 ${nodes.length}개를 받았어요. 결과 JSON을 내려받아 대화에 올려 주세요.`);
   }
 
   function download(name, text, type) {
@@ -177,12 +267,15 @@
   /* 이번에 찾은 값으로 덮고, 이번에 못 찾은 장소는 예전 값을 그대로 둬요 */
   function accessSource() {
     const out = Object.assign({}, OLD);
-    results.filter(usable).forEach((r) => { out[r.station + '|' + r.place] = [r.exit, r.walk]; });
+    results.forEach((r) => {
+      const v = shown(r);
+      if (v) out[r.station + '|' + r.place] = v; else delete out[r.station + '|' + r.place];
+    });
     const q = (s) => "'" + String(s).replace(/\\/g, '\\\\').replace(/'/g, "\\'") + "'";
     const body = Object.keys(out).sort().map((k) => `    ${q(k)}: [${q(out[k][0])}, ${Number(out[k][1])}],`).join('\n');
     return `/* 이 역 근처 장소: 가까운 출구와 걸어서 걸리는 시간(어림). tools/place-check.html로 만들어요 (${new Date().toLocaleDateString('sv-SE')}).
-   키는 '역|장소 이름', 값은 [출구 번호(못 찾으면 ''), 도보 분].
-   도보 분은 출구에서 장소까지 직선거리 × 1.3 ÷ 분당 70m 로 어림했어요.
+   키는 '역|장소 이름', 값은 [출구 번호(못 찾으면 ''), 도보 분]. 도보 분이 0이면 공원처럼 넓은 곳이라 'N번 출구 쪽'만 보여요.
+   출구는 OpenStreetMap, 장소 위치는 카카오 장소 검색. 도보 분은 출구에서 장소까지 직선거리 × 1.3 ÷ 분당 70m 어림이에요.
    여기 없는 장소는 화면에 이름과 설명만 나와요. */
 (function () {
   const ACCESS = {
@@ -226,13 +319,32 @@ ${body}
       }
       await sleep(120);
     }
+    osmDone = false;
     render();
-    say('끝났어요. 결과 JSON을 내려받아 대화에 올려 주세요.');
+    say('장소를 찾았어요. 이어서 2단계(출구 찾기)를 눌러 주세요.');
     $('#start').disabled = false;
   });
 
+  $('#osm').addEventListener('click', findExits);
+  $('#load').addEventListener('click', () => $('#file').click());
+  $('#file').addEventListener('change', async (e) => {
+    const f = e.target.files[0];
+    e.target.value = '';
+    if (!f) return;
+    try {
+      const data = JSON.parse(await f.text());
+      if (!data || !Array.isArray(data.results)) throw new Error('형식');
+      results = data.results;
+      osmDone = results.some((r) => 'osmExit' in r);
+      render();
+      say(`예전 결과 ${results.length}곳을 불러왔어요.` + (osmDone ? '' : ' 2단계(출구 찾기)를 눌러 주세요.'));
+    } catch (err) {
+      say('불러오지 못했어요. 이 도구에서 내려받은 JSON인지 확인해 주세요.', true);
+    }
+  });
+
   $('#dlJson').addEventListener('click', () => {
-    const data = { checkedAt: new Date().toISOString(), source: 'kakao places keyword', results };
+    const data = { checkedAt: new Date().toISOString(), source: 'kakao places keyword' + (osmDone ? ' + osm entrances' : ''), results };
     download('access-kakao.json', JSON.stringify(data, null, 1), 'application/json');
   });
   $('#dlAccess').addEventListener('click', () => download('access.js', accessSource(), 'text/javascript'));
