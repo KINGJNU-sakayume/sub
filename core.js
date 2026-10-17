@@ -211,35 +211,41 @@
     { name: '용산', pen: 6, train: 'ITX-청춘' },
   ];
   const TRANSFER = 5;
+  /* 따로 다니는 지선(sep)은 '2.1'처럼 별도 그룹으로 둬서 만나는 역에서 환승으로 계산해요 */
   const NODES = new Map();
-  const nodeOf = (line, name) => {
-    const k = line + '|' + name;
+  const GROUPS = new Map();       // 역 이름 -> 그 역이 속한 그룹들
+  const groupOf = (L, ti) => (L.tracks[ti].sep ? L.n + '.' + ti : String(L.n));
+  const nodeOf = (g, name) => {
+    const k = g + '|' + name;
     let n = NODES.get(k);
-    if (!n) { n = { key: k, line, name, edges: [] }; NODES.set(k, n); }
+    if (!n) {
+      n = { key: k, name, edges: [] };
+      NODES.set(k, n);
+      if (!GROUPS.has(name)) GROUPS.set(name, new Set());
+      GROUPS.get(name).add(g);
+    }
     return n;
   };
-  const link = (line, a, b) => {
-    const A = nodeOf(line, a), B = nodeOf(line, b);
-    if (!A.edges.some((e) => e.to === B)) {
-      A.edges.push({ to: B, cost: 1 });
-      B.edges.push({ to: A, cost: 1 });
-    }
+  const link = (g, a, b, oneway) => {
+    const A = nodeOf(g, a), B = nodeOf(g, b);
+    if (!A.edges.some((e) => e.to === B)) A.edges.push({ to: B, cost: 1 });
+    if (!oneway && !B.edges.some((e) => e.to === A)) B.edges.push({ to: A, cost: 1 });
   };
-  LINES.forEach((L) => L.tracks.forEach((t) => {
-    const s = t.s;
-    for (let i = 0; i < s.length - 1; i++) link(L.n, s[i], s[i + 1]);
-    if (t.loop && s.length > 2) link(L.n, s[s.length - 1], s[0]);
+  LINES.forEach((L) => L.tracks.forEach((t, ti) => {
+    const s = t.s, g = groupOf(L, ti);
+    for (let i = 0; i < s.length - 1; i++) link(g, s[i], s[i + 1], t.oneway);
+    if (t.loop && s.length > 2) link(g, s[s.length - 1], s[0], t.oneway);
   }));
-  STATIONS.forEach((st) => {
-    if (st.lines.length < 2) return;
-    st.lines.forEach((a) => st.lines.forEach((b) => {
-      if (a !== b) nodeOf(a, st.name).edges.push({ to: nodeOf(b, st.name), cost: TRANSFER });
+  GROUPS.forEach((gs, name) => {
+    if (gs.size < 2) return;
+    gs.forEach((a) => gs.forEach((b) => {
+      if (a !== b) nodeOf(a, name).edges.push({ to: nodeOf(b, name), cost: TRANSFER });
     }));
   });
 
   function shortest(fromName, destName) {
     const dist = new Map(), prev = new Map(), done = new Set();
-    STATIONS.get(fromName).lines.forEach((l) => dist.set(l + '|' + fromName, 0));
+    GROUPS.get(fromName).forEach((g) => dist.set(g + '|' + fromName, 0));
     for (;;) {
       let cur = null, cd = Infinity;
       for (const [k, d] of dist) if (!done.has(k) && d < cd) { cd = d; cur = k; }
@@ -254,8 +260,8 @@
       }
     }
     let best = null, bd = Infinity;
-    STATIONS.get(destName).lines.forEach((l) => {
-      const k = l + '|' + destName;
+    GROUPS.get(destName).forEach((g) => {
+      const k = g + '|' + destName;
       if (dist.has(k) && dist.get(k) < bd) { bd = dist.get(k); best = k; }
     });
     if (best === null) return null;
@@ -269,10 +275,10 @@
     let cur = null;
     path.forEach((k) => {
       const i = k.indexOf('|');
-      const line = Number(k.slice(0, i)), name = k.slice(i + 1);
-      if (!cur || cur.line !== line) {
+      const g = k.slice(0, i), name = k.slice(i + 1);
+      if (!cur || cur.g !== g) {
         if (cur) segs.push(cur);
-        cur = { line, from: name, to: name, via: [name] };
+        cur = { g, line: parseInt(g, 10), from: name, to: name, via: [name] };
       } else {
         cur.to = name;
         cur.via.push(name);
@@ -282,16 +288,27 @@
     const real = segs.filter((s) => s.via.length > 1);
     real.forEach((s) => {
       s.stops = s.via.length - 1;
-      const tr = trackFor(LINE[s.line], s.from);
-      const loopTrack = LINE[s.line].tracks.find((t) => t.loop && t.s.includes(s.from) && t.s.includes(s.via[1]));
+      const L = LINE[s.line];
+      const ti = s.g.indexOf('.') > 0 ? Number(s.g.split('.')[1]) : -1;
+      if (ti >= 0) s.sepName = L.tracks[ti].name;
+      s.track = ti >= 0 ? L.tracks[ti] : trackFor(L, s.from);
+      const loopTrack = L.tracks.find((t) => t.loop && t.fwd && t.s.includes(s.from) && t.s.includes(s.via[1]));
       if (loopTrack) {
         const a = loopTrack.s, n = a.length, i = a.indexOf(s.from);
-        s.loopDir = a[(i + 1) % n] === s.via[1] ? '외선순환' : '내선순환';
+        s.loopDir = a[(i + 1) % n] === s.via[1] ? loopTrack.fwd : loopTrack.back;
       }
-      s.track = tr;
+      /* 본선과 직결로 다니는 갈래로 넘어가면 행선지를 확인하라고 알려요 */
+      const main = L.tracks[0].s;
+      L.tracks.forEach((t, j) => {
+        if (j === 0 || t.sep || t.loop || !t.name) return;
+        const onBranch = s.via.some((n) => t.s.includes(n) && !main.includes(n));
+        const offBranch = s.via.some((n) => !t.s.includes(n));
+        if (onBranch && offBranch) s.branch = { name: t.name, at: t.s[0] };
+      });
     });
     return real;
   }
+  const segLabel = (s) => s.line + '호선' + (s.sepName ? ' ' + s.sepName : '');
 
   const routeCache = new Map();
   function routesTo(dest) {
@@ -582,7 +599,8 @@
       const L = LINE[s.line];
       const next = r.segments[i + 1];
       const dir = s.loopDir ? s.loopDir + ' ' + esc(s.via[1]) + ' 방향' : esc(s.via[1]) + ' 방면';
-      items.push(`<li class="leg" style="--c:${L.color}"><span class="rb" style="background:${L.color};color:${L.ink}">${L.n}</span><div class="rt"><b>${L.n}호선 ${esc(s.from)}에서 ${dir}</b><span class="sub">${s.stops}정거장, ${next ? esc(s.to) + '에서 ' + next.line + '호선으로 환승' : esc(s.to) + '에서 내려요'}</span></div></li>`);
+      const fork = s.branch ? ` ${esc(s.branch.at)}에서 ${esc(s.branch.name)}으로 가는 열차인지 행선지를 확인하세요.` : '';
+      items.push(`<li class="leg" style="--c:${L.color}"><span class="rb" style="background:${L.color};color:${L.ink}">${L.n}</span><div class="rt"><b>${esc(segLabel(s))} ${esc(s.from)}에서 ${dir}</b><span class="sub">${s.stops}정거장, ${next ? esc(s.to) + '에서 ' + esc(segLabel(next)) + '으로 환승' : esc(s.to) + '에서 내려요'}${fork}</span></div></li>`);
     });
     items.push(`<li class="leg end"><span class="rb rb-end"></span><div class="rt"><b>${esc(stationQuery(dest))} 도착</b></div></li>`);
     return `<ol class="route">${items.join('')}</ol>`;
@@ -593,7 +611,7 @@
     if (!rs.length) return '<p class="empty">경로를 찾지 못했어요.</p>';
     const best = rs[0];
     const alts = rs.slice(1, 3).map((r) => {
-      const lines = r.segments.length ? r.segments.map((s) => s.line + '호선').join(' → ') : '열차에서 바로 내려요';
+      const lines = r.segments.length ? r.segments.map(segLabel).join(' → ') : '열차에서 바로 내려요';
       return `<li><b>${esc(r.entry.name)}</b>에서 시작, ${lines}, 환승 ${r.transfers}회, ${r.stops}정거장</li>`;
     }).join('');
     const summary = best.segments.length ? `환승 ${best.transfers}회, 지하철 ${best.stops}정거장` : '열차에서 바로 도착';
@@ -822,7 +840,18 @@
     btn.addEventListener('click', open);
     $('.x', dr).addEventListener('click', close);
     scrim.addEventListener('click', close);
-    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && isOpen) close(); });
+    /* 열려 있는 동안 Tab은 서랍 안에서만 돌아요 */
+    const FOCUSABLE = 'button:not([disabled]), a[href], input:not([hidden]):not([disabled]), summary, [tabindex]:not([tabindex="-1"])';
+    document.addEventListener('keydown', (e) => {
+      if (!isOpen) return;
+      if (e.key === 'Escape') { close(); return; }
+      if (e.key !== 'Tab') return;
+      const items = [...dr.querySelectorAll(FOCUSABLE)].filter((x) => x.getClientRects().length);
+      if (!items.length) return;
+      const first = items[0], last = items[items.length - 1];
+      if (e.shiftKey && (document.activeElement === first || !dr.contains(document.activeElement))) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && (document.activeElement === last || !dr.contains(document.activeElement))) { e.preventDefault(); first.focus(); }
+    });
     on('stamps', () => { if (isOpen) renderAll(); });
 
     $('#export', dr).addEventListener('click', async () => {

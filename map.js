@@ -10,7 +10,7 @@
     panel: $('#panel'), head: $('#panelHead'), board: $('#board'), toggle: $('#panelToggle'),
   };
 
-  if (!window.L) { $('#maperr').hidden = false; }
+  if (!window.L) { $('#maperr').hidden = false; D.draw.disabled = true; }
   const L_ = window.L;
 
   const GRAY = '#9aa1a5';
