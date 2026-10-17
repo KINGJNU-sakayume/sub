@@ -1,4 +1,9 @@
-/* 서울 지하철 1~9호선 (서울 구간) 데이터
+/* 수도권 전철 노선 데이터
+   n: 노선 id. 1~9호선은 숫자(저장된 도장 기록과 호환), 나머지는 짧은 영문 id
+   name/short/en: 노선 이름 · 배지 글자 · 영문 (1~9호선은 생략하면 'N호선' · 'N' · 'Line N')
+   kakao: 카카오 장소 이름에 붙는 노선명(좌표 검사 도구용), min: 한 정거장 어림 시간(분, 기본 2)
+   pick: 뽑기 기본값(생략하면 켜짐). 설정에서 노선별로 바꿀 수 있어요
+   역 이름이 같지만 다른 역은 '신촌(경의중앙)'처럼 괄호를 붙여 구분하고, 화면엔 괄호 앞만 보여요
    tracks: 노선의 갈래. 같은 갈래 안의 순서가 이전역/다음역이 됩니다.
    loop:true 이면 끝이 처음으로 이어지는 순환 구간입니다.
    opt.fwd/back: 순환선에서 나열 순서대로 / 거꾸로 갈 때의 이름
@@ -46,7 +51,7 @@
     {
       n: 6, color: '#CD7C2F', ink: '#fff',
       tracks: [
-        T('응암 새절 증산 디지털미디어시티 월드컵경기장 마포구청 망원 합정 상수 광흥창 대흥 공덕 효창공원앞 삼각지 녹사평 이태원 한강진 버티고개 약수 청구 신당 동묘앞 창신 보문 안암 고려대 월곡 상월곡 돌곶이 석계 태릉입구 화랑대 봉화산'),
+        T('응암 새절 증산 디지털미디어시티 월드컵경기장 마포구청 망원 합정 상수 광흥창 대흥 공덕 효창공원앞 삼각지 녹사평 이태원 한강진 버티고개 약수 청구 신당 동묘앞 창신 보문 안암 고려대 월곡 상월곡 돌곶이 석계 태릉입구 화랑대 봉화산 신내'),
         T('응암 역촌 불광 독바위 연신내 구산', true, { oneway: true, name: '응암순환' }),
       ],
     },
@@ -59,7 +64,7 @@
     {
       n: 8, color: '#E6186C', ink: '#fff',
       tracks: [
-        T('암사 천호 강동구청 몽촌토성 잠실 석촌 송파 가락시장 문정 장지 복정'),
+        T('암사역사공원 암사 천호 강동구청 몽촌토성 잠실 석촌 송파 가락시장 문정 장지 복정'),
       ],
     },
     {
@@ -68,7 +73,64 @@
         T('개화 김포공항 공항시장 신방화 마곡나루 양천향교 가양 증미 등촌 염창 신목동 선유도 당산 국회의사당 여의도 샛강 노량진 노들 흑석 동작 구반포 신반포 고속터미널 사평 신논현 언주 선정릉 삼성중앙 봉은사 종합운동장 삼전 석촌고분 석촌 송파나루 한성백제 올림픽공원 둔촌오륜 중앙보훈병원'),
       ],
     },
+    {
+      n: 'GJ', name: '경의중앙선', short: '경의중앙', en: 'Gyeongui–Jungang', kakao: '경의중앙선', min: 3, pick: false,
+      color: '#77C4A3', ink: '#10302a',
+      tracks: [
+        T('수색 디지털미디어시티 가좌 홍대입구 서강대 공덕 효창공원앞 용산 이촌 서빙고 한남 옥수 응봉 왕십리 청량리 회기 중랑 상봉 망우 양원'),
+        T('서울역 신촌(경의중앙) 가좌', false, { sep: true, name: '서울역 갈래' }),
+      ],
+    },
+    {
+      n: 'SB', name: '수인분당선', short: '수인분당', en: 'Suin–Bundang', kakao: '수인분당선', pick: false,
+      color: '#FABE00', ink: '#2a2200',
+      tracks: [
+        T('청량리 왕십리 서울숲 압구정로데오 강남구청 선정릉 선릉 한티 도곡 구룡 개포동 대모산입구 수서 복정'),
+      ],
+    },
+    {
+      n: 'SS', name: '신분당선', short: '신분당', en: 'Sinbundang', kakao: '신분당선', min: 3, pick: false,
+      color: '#D4003B', ink: '#fff',
+      tracks: [
+        T('신사 논현 신논현 강남 양재 양재시민의숲 청계산입구'),
+      ],
+    },
+    {
+      n: 'AR', name: '공항철도', short: '공항', en: 'AREX', kakao: '공항철도', min: 4, pick: false,
+      color: '#0090D2', ink: '#fff',
+      tracks: [
+        T('서울역 공덕 홍대입구 디지털미디어시티 마곡나루 김포공항'),
+      ],
+    },
+    {
+      n: 'GC', name: '경춘선', short: '경춘', en: 'Gyeongchun', kakao: '경춘선', min: 4, pick: false,
+      color: '#0C8E72', ink: '#fff',
+      tracks: [
+        T('광운대 상봉 망우 신내'),
+      ],
+    },
+    {
+      n: 'UI', name: '우이신설선', short: '우이', en: 'Ui–Sinseol', kakao: '우이신설선', pick: false,
+      color: '#B7C452', ink: '#25290c',
+      tracks: [
+        T('북한산우이 솔밭공원 4·19민주묘지 가오리 화계 삼양 삼양사거리 솔샘 북한산보국문 정릉 성신여대입구 보문 신설동'),
+      ],
+    },
+    {
+      n: 'SL', name: '신림선', short: '신림', en: 'Sillim', kakao: '신림선', pick: false,
+      color: '#6789CA', ink: '#fff',
+      tracks: [
+        T('샛강 대방 서울지방병무청 보라매 보라매공원 보라매병원 당곡 신림 서원 서울대벤처타운 관악산'),
+      ],
+    },
   ];
+
+  /* 서울 밖 역. 여기 없는 역은 서울이에요 (설정의 '서울' 범위에 쓰여요) */
+  const REGION_RAW = {
+    경기: '복정',
+  };
+  const REGION = {};
+  Object.entries(REGION_RAW).forEach(([r, list]) => list.split(' ').forEach((n) => { REGION[n] = r; }));
 
   /* 영문 역명 (서울교통공사 표기 기준으로 정리) */
   const EN_RAW = [
@@ -95,6 +157,11 @@
     '개화:Gaehwa|공항시장:Gonghang Market|신방화:Sinbanghwa|마곡나루:Magongnaru|양천향교:Yangcheonhyanggyo|가양:Gayang|증미:Jeungmi|등촌:Deungchon|염창:Yeomchang|신목동:Sinmokdong|선유도:Seonyudo',
     '국회의사당:National Assembly|샛강:Saetgang|노들:Nodeul|흑석:Heukseok|구반포:Gubanpo|신반포:Sinbanpo|사평:Sapyeong|신논현:Sinnonhyeon|언주:Eonju|선정릉:Seonjeongneung|삼성중앙:Samseong Jungang|봉은사:Bongeunsa',
     '삼전:Samjeon|석촌고분:Seokchon-gobun|송파나루:Songpanaru|한성백제:Hanseong Baekje|둔촌오륜:Dunchon-oryun|중앙보훈병원:VHS Medical Center',
+    '신내:Sinnae|암사역사공원:Amsa History Park',
+    '수색:Susaek|가좌:Gajwa|서강대:Sogang Univ.|서빙고:Seobinggo|한남:Hannam|응봉:Eungbong|중랑:Jungnang|망우:Mangu|양원:Yangwon|신촌(경의중앙):Sinchon',
+    '서울숲:Seoul Forest|압구정로데오:Apgujeongrodeo|한티:Hanti|구룡:Guryong|개포동:Gaepo-dong|대모산입구:Daemosan|양재시민의숲:Yangjae Citizens\' Forest|청계산입구:Cheonggyesan',
+    '북한산우이:Bukhansan Ui|솔밭공원:Solbat Park|4·19민주묘지:4.19 Nat\'l Cemetery|가오리:Gaori|화계:Hwagye|삼양:Samyang|삼양사거리:Samyang Sageori|솔샘:Solsaem|북한산보국문:Bukhansan Bogungmun|정릉:Jeongneung',
+    '서울지방병무청:Seoul Regional Military Manpower Admin.|보라매공원:Boramae Park|보라매병원:Boramae Medical Center|당곡:Danggok|서원:Seowon|서울대벤처타운:Seoul Nat\'l Univ. Venture Town|관악산:Gwanaksan',
   ];
   const EN = {};
   EN_RAW.join('|').split('|').forEach((p) => {
@@ -174,5 +241,5 @@
   /* 이름이 바뀐 역: 예전 이름으로 저장된 도장·백업을 새 이름으로 옮길 때 써요 */
   const RENAMED = { '당고개': '불암산', '뚝섬유원지': '자양' };
 
-  window.METRO = { LINES, EN, CURATED, RENAMED };
+  window.METRO = { LINES, EN, CURATED, RENAMED, REGION };
 })();

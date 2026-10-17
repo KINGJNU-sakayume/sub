@@ -58,7 +58,7 @@
       const m = L_.circleMarker(GEO[name], {
         radius: 5, weight: 2.5, color: LINE[n].color, fillColor: visited ? LINE[n].color : '#fff', fillOpacity: 1,
       });
-      m.bindTooltip(name, { direction: 'top', className: 'tip' });
+      m.bindTooltip(C.label(name), { direction: 'top', className: 'tip' });
       m.on('click', () => pick(name, n));
       m.addTo(dotLayer);
     }));
@@ -71,7 +71,7 @@
       iconSize: [0, 0],
       html: '<div class="big-marker" style="--c:' + Ln.color + ';--k:' + Ln.ink + '">' +
         '<span class="pulse"></span><span class="core-dot"></span>' +
-        '<span class="nameplate"><i>' + Ln.n + '</i>' + C.esc(name) + '</span></div>',
+        '<span class="nameplate"><i' + (C.isText(Ln) ? ' class="txt"' : '') + '>' + C.esc(C.lineShort(Ln)) + '</i>' + C.esc(C.label(name)) + '</span></div>',
     });
   }
   function hopIcon(n) {
@@ -107,20 +107,21 @@
     const st = STATIONS.get(name);
     D.head.replaceChildren();
     const b = document.createElement('div');
-    b.className = 'ph-badge';
-    b.textContent = Ln.n;
+    b.className = 'ph-badge' + (C.isText(Ln) ? ' txt' : '');
+    b.textContent = C.lineShort(Ln);
+    b.setAttribute('aria-label', C.lineName(Ln));
     b.style.background = Ln.color;
     b.style.color = Ln.ink;
     const tx = document.createElement('div');
-    const ko = document.createElement('div'); ko.className = 'ph-ko'; ko.textContent = name;
+    const ko = document.createElement('div'); ko.className = 'ph-ko'; ko.textContent = C.label(name);
     const en = document.createElement('div'); en.className = 'ph-en'; en.textContent = st ? st.en : '';
     tx.append(ko, en);
     const x = document.createElement('div'); x.className = 'ph-x';
     (st ? st.lines : []).filter((m) => m !== n).forEach((m) => {
       const s = document.createElement('span');
-      s.className = 'xbadge'; s.textContent = m;
+      s.className = 'xbadge' + (C.isText(LINE[m]) ? ' txt' : ''); s.textContent = C.lineShort(LINE[m]);
       s.style.background = LINE[m].color; s.style.color = LINE[m].ink;
-      s.setAttribute('aria-label', m + '호선 환승');
+      s.setAttribute('aria-label', C.lineName(LINE[m]) + ' 환승');
       x.append(s);
     });
     D.head.append(b, tx, x);
@@ -138,7 +139,7 @@
     place(name, n);
     focus(name);
     showPanel(name, n);
-    D.live.textContent = n + '호선 ' + C.stationQuery(name) + '이 나왔어요.';
+    D.live.textContent = C.lineName(LINE[n]) + ' ' + C.stationQuery(name) + '이 나왔어요.';
   }
 
   function pick(name, n) {
@@ -182,7 +183,7 @@
     D.draw.disabled = false;
     D.draw.textContent = '다시 뽑기';
     if (!res) {
-      D.note.textContent = '모든 역에 도장을 찍었어요. 옵션을 끄면 다시 뽑을 수 있어요.';
+      D.note.textContent = C.pool().size ? '이 범위의 역은 모두 도장을 찍었어요. 옵션을 끄거나 기록에서 노선을 더 켜 보세요.' : '뽑을 노선이 없어요. 기록 > 뽑기 범위에서 노선을 켜 주세요.';
       return;
     }
     settle(res.name, res.line);

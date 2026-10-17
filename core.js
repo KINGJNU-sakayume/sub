@@ -11,8 +11,16 @@
   const rand = (a) => a[Math.floor(Math.random() * a.length)];
   const enc = encodeURIComponent;
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const REGION = window.METRO.REGION || {};
   const LINE = Object.fromEntries(LINES.map((l) => [l.n, l]));
   const ORIGIN = '남춘천';
+
+  /* 노선·역 표시 이름 */
+  const lineName = (L) => L.name || L.n + '호선';
+  const lineShort = (L) => L.short || String(L.n);
+  const lineEn = (L) => L.en || 'Line ' + L.n;
+  const isText = (L) => typeof L.n !== 'number';          // 숫자 대신 글자 배지를 쓰는 노선
+  const label = (key) => String(key).replace(/\(.+\)$/, '');  // '신촌(경의중앙)' → '신촌'
 
   /* ---------- 역 색인 ---------- */
   const STATIONS = new Map();
@@ -21,11 +29,12 @@
     L.tracks.forEach((t) => t.s.forEach((name) => {
       if (!L.all.includes(name)) L.all.push(name);
       let st = STATIONS.get(name);
-      if (!st) { st = { name, lines: [], en: EN[name] || '' }; STATIONS.set(name, st); }
+      if (!st) { st = { name, label: label(name), lines: [], en: EN[name] || '', region: REGION[name] || '' }; STATIONS.set(name, st); }
       if (!st.lines.includes(L.n)) st.lines.push(L.n);
     }));
   });
-  STATIONS.forEach((st) => st.lines.sort((a, b) => a - b));
+  const lineOrder = new Map(LINES.map((L, i) => [L.n, i]));
+  STATIONS.forEach((st) => st.lines.sort((a, b) => lineOrder.get(a) - lineOrder.get(b)));
 
   const trackFor = (L, name) => L.tracks.find((t) => t.s.includes(name));
   function neighbors(track, name) {
@@ -33,7 +42,7 @@
     if (track.loop) return { p: s[(i - 1 + n) % n], q: s[(i + 1) % n] };
     return { p: s[i - 1] || '', q: s[i + 1] || '' };
   }
-  const stationQuery = (name) => (name.endsWith('역') ? name : name + '역');
+  const stationQuery = (name) => { const t = label(name); return t.endsWith('역') ? t : t + '역'; };
   const mapLinks = (q) => ({
     kakao: 'https://map.kakao.com/link/search/' + enc(q),
     naver: 'https://map.naver.com/p/search/' + enc(q),
@@ -48,7 +57,7 @@
 
   /* ---------- 저장 ---------- */
   const KEY = 'metro-stamp:v2';
-  const state = { stamps: {}, unvisited: true, sound: true, voice: false };
+  const state = { stamps: {}, unvisited: true, sound: true, voice: false, scope: 'seoul', lines: {} };
   try {
     const raw = localStorage.getItem(KEY);
     if (raw) {
@@ -64,6 +73,19 @@
     }
   } catch (e) { /* 저장소를 못 쓰는 환경 */ }
   const save = () => { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) { /* 무시 */ } };
+  if (!state.lines || typeof state.lines !== 'object') state.lines = {};
+  if (state.scope !== 'all') state.scope = 'seoul';
+
+  /* ---------- 뽑기 범위 (설정) ---------- */
+  const lineOn = (L) => (L.n in state.lines ? !!state.lines[L.n] : L.pick !== false);
+  const inScope = (name) => state.scope === 'all' || !REGION[name];
+  const activeLines = () => LINES.filter(lineOn);
+  /* 지금 설정으로 뽑을 수 있는 역 (도장 기록 수의 분모) */
+  function pool() {
+    const set = new Set();
+    activeLines().forEach((L) => L.all.forEach((n) => { if (inScope(n)) set.add(n); }));
+    return set;
+  }
 
   /* 이름이 바뀐 역의 도장을 새 이름으로 옮겨요. 사진은 아래 사진 저장소에서 옮겨요 */
   const renamedPhotos = [];       // [옛 이름, 새 이름, 사진을 새 이름으로 옮길지]
@@ -161,7 +183,7 @@
   const thud = () => { tone(150, 0.12, 'sine', 0.12, 0); tone(90, 0.18, 'sine', 0.1, 0.02); };
   function announce(name) {
     if (!state.voice || !('speechSynthesis' in window)) return;
-    const base = name.replace(/역$/, '');
+    const base = label(name).replace(/역$/, '');
     const u = new SpeechSynthesisUtterance('이번 역은 ' + base + ', ' + stationQuery(name) + '입니다.');
     u.lang = 'ko-KR';
     u.rate = 0.95;
@@ -174,8 +196,8 @@
 
   function eligible() {
     const m = new Map();
-    LINES.forEach((L) => {
-      const list = L.all.filter((n) => !state.unvisited || !state.stamps[n]);
+    activeLines().forEach((L) => {
+      const list = L.all.filter((n) => inScope(n) && (!state.unvisited || !state.stamps[n]));
       if (list.length) m.set(L.n, list);
     });
     return m;
@@ -195,10 +217,12 @@
       h.station(name, L, tr, 0);
     } else {
       audio();
-      const start = 1 + Math.floor(Math.random() * 9);
-      const total = 18 + ((lineN - start + 9) % 9);
+      const roll = activeLines().map((x) => x.n);
+      const len = roll.length;
+      const start = Math.floor(Math.random() * len);
+      const total = 18 + ((roll.indexOf(lineN) - start + len) % len);
       for (let i = 0; i <= total; i++) {
-        const n = ((start - 1 + i) % 9) + 1;
+        const n = roll[(start + i) % len];
         const d = delay(i, total);
         h.line(n, d);
         tick(i);
@@ -225,19 +249,26 @@
   }
 
   /* ---------- 남춘천 출발 경로 ---------- */
-  /* 걸리는 시간(분)으로 가장 빠른 길을 골라요. 모두 어림값이에요.
-     ITX-청춘은 대부분 청량리·용산에만 서서 두 역에서만 갈아타요. 용산은 청량리에서 더 가는 시간만큼 늦어요.
-     ITX에서 지하철로 갈아타는 것도 환승 한 번으로 셉니다. */
+  /* 남춘천에서 걸리는 시간(분)으로 가장 빠른 길을 골라요. 모두 어림값이에요.
+     ITX-청춘은 대부분 청량리·용산에만 서서 두 역에서만 갈아타요(pen: 남춘천에서 그 역까지 ITX 시간).
+     ITX에서 지하철로 갈아타는 것도 환승 한 번으로 셉니다.
+     남춘천이 노선 데이터에 있으면 경춘선 전철로 바로 가는 길도 같이 비교해요(train 없음). */
   const ENTRIES = [
-    { name: '청량리', pen: 0, train: 'ITX-청춘' },
-    { name: '용산', pen: 18, train: 'ITX-청춘' },
+    { name: '청량리', pen: 65, train: 'ITX-청춘' },
+    { name: '용산', pen: 83, train: 'ITX-청춘' },
+    { name: ORIGIN, pen: 0 },
   ];
-  const STOP_MIN = 2;             // 한 정거장
+  const STOP_MIN = 2;             // 한 정거장 기본값 (노선별 min이 있으면 그 값)
   const TRANSFER = 7;             // 갈아타기(걷기 + 기다리기)
-  /* 따로 다니는 지선(sep)은 '2.1'처럼 별도 그룹으로 둬서 만나는 역에서 환승으로 계산해요 */
+  /* 따로 다니는 지선(sep)은 '2#1'처럼 별도 그룹으로 둬서 만나는 역에서 환승으로 계산해요 */
   const NODES = new Map();
   const GROUPS = new Map();       // 역 이름 -> 그 역이 속한 그룹들
-  const groupOf = (L, ti) => (L.tracks[ti].sep ? L.n + '.' + ti : String(L.n));
+  const GROUP_LINE = new Map();   // 그룹 -> { L, ti }  (ti: 지선 트랙 번호, 본선이면 -1)
+  const groupOf = (L, ti) => {
+    const g = L.tracks[ti].sep ? L.n + '#' + ti : String(L.n);
+    if (!GROUP_LINE.has(g)) GROUP_LINE.set(g, { L, ti: L.tracks[ti].sep ? ti : -1 });
+    return g;
+  };
   const nodeOf = (g, name) => {
     const k = g + '|' + name;
     let n = NODES.get(k);
@@ -249,15 +280,15 @@
     }
     return n;
   };
-  const link = (g, a, b, oneway) => {
+  const link = (g, a, b, oneway, cost) => {
     const A = nodeOf(g, a), B = nodeOf(g, b);
-    if (!A.edges.some((e) => e.to === B)) A.edges.push({ to: B, cost: STOP_MIN });
-    if (!oneway && !B.edges.some((e) => e.to === A)) B.edges.push({ to: A, cost: STOP_MIN });
+    if (!A.edges.some((e) => e.to === B)) A.edges.push({ to: B, cost });
+    if (!oneway && !B.edges.some((e) => e.to === A)) B.edges.push({ to: A, cost });
   };
   LINES.forEach((L) => L.tracks.forEach((t, ti) => {
-    const s = t.s, g = groupOf(L, ti);
-    for (let i = 0; i < s.length - 1; i++) link(g, s[i], s[i + 1], t.oneway);
-    if (t.loop && s.length > 2) link(g, s[s.length - 1], s[0], t.oneway);
+    const s = t.s, g = groupOf(L, ti), c = L.min || STOP_MIN;
+    for (let i = 0; i < s.length - 1; i++) link(g, s[i], s[i + 1], t.oneway, c);
+    if (t.loop && s.length > 2) link(g, s[s.length - 1], s[0], t.oneway, c);
   }));
   GROUPS.forEach((gs, name) => {
     if (gs.size < 2) return;
@@ -301,7 +332,7 @@
       const g = k.slice(0, i), name = k.slice(i + 1);
       if (!cur || cur.g !== g) {
         if (cur) segs.push(cur);
-        cur = { g, line: parseInt(g, 10), from: name, to: name, via: [name] };
+        cur = { g, line: GROUP_LINE.get(g).L.n, from: name, to: name, via: [name] };
       } else {
         cur.to = name;
         cur.via.push(name);
@@ -312,7 +343,7 @@
     real.forEach((s) => {
       s.stops = s.via.length - 1;
       const L = LINE[s.line];
-      const ti = s.g.indexOf('.') > 0 ? Number(s.g.split('.')[1]) : -1;
+      const ti = GROUP_LINE.get(s.g).ti;
       if (ti >= 0) s.sepName = L.tracks[ti].name;
       s.track = ti >= 0 ? L.tracks[ti] : trackFor(L, s.from);
       const loopTrack = L.tracks.find((t) => t.loop && t.fwd && t.s.includes(s.from) && t.s.includes(s.via[1]));
@@ -331,23 +362,26 @@
     });
     return real;
   }
-  const segLabel = (s) => s.line + '호선' + (s.sepName ? ' ' + s.sepName : '');
+  const segLabel = (s) => lineName(LINE[s.line]) + (s.sepName ? ' ' + s.sepName : '');
 
   const routeCache = new Map();
   function routesTo(dest) {
     if (routeCache.has(dest)) return routeCache.get(dest);
     const out = [];
+    if (!GROUPS.has(dest)) return out;
     ENTRIES.forEach((en) => {
+      if (!GROUPS.has(en.name)) return;
       if (en.name === dest) { out.push({ entry: en, segments: [], stops: 0, transfers: 0, cost: en.pen }); return; }
       const r = shortest(en.name, dest);
       if (!r) return;
       const segments = toSegments(r.path);
+      const itx = en.train ? 1 : 0;   // ITX에서 지하철로 갈아타는 것도 환승 1회
       out.push({
         entry: en,
         segments,
         stops: segments.reduce((a, s) => a + s.stops, 0),
-        transfers: segments.length,
-        cost: r.cost + en.pen + TRANSFER,
+        transfers: Math.max(0, segments.length - 1 + itx),
+        cost: r.cost + en.pen + itx * TRANSFER,
       });
     });
     out.sort((a, b) => a.cost - b.cost);
@@ -583,15 +617,18 @@
     const id = 'r' + (++sealId);
     const L = LINE[lineN] || LINES[0];
     const color = L.color === '#BDB092' ? '#8f8160' : L.color;
-    const chars = [...name];
+    const shown = label(name);
+    const chars = [...shown];
     const two = chars.length > 5;
     const half = Math.ceil(chars.length / 2);
-    const rows = two ? [chars.slice(0, half).join(''), chars.slice(half).join('')] : [name];
+    const rows = two ? [chars.slice(0, half).join(''), chars.slice(half).join('')] : [shown];
     const longest = Math.max(...rows.map((r) => [...r].length));
     const fs = Math.min(30, 108 / longest);
     const y0 = two ? 100 : 108;
     const text = rows.map((r, i) => `<text x="100" y="${y0 + i * (fs + 4)}" text-anchor="middle" font-size="${fs.toFixed(1)}" font-weight="900" fill="${color}" stroke="none">${esc(r)}</text>`).join('');
-    return `<svg class="seal" viewBox="0 0 200 200" role="img" aria-label="${esc(name)} 도장" font-family="Gothic A1, sans-serif">
+    const tag = lineShort(L);
+    const tagSize = Math.min(16, 34 / Math.max(1, [...tag].length));
+    return `<svg class="seal" viewBox="0 0 200 200" role="img" aria-label="${esc(shown)} 도장" font-family="Gothic A1, sans-serif">
   <defs>
     <filter id="f${id}" x="-5%" y="-5%" width="110%" height="110%">
       <feTurbulence type="fractalNoise" baseFrequency="0.8" numOctaves="2" seed="7" result="t"/>
@@ -606,8 +643,8 @@
     <circle cx="100" cy="100" r="59" stroke-width="1.5"/>
     <text font-size="13" font-weight="800" fill="${color}" stroke="none" letter-spacing="2"><textPath href="#t${id}" startOffset="50%" text-anchor="middle">서울 지하철</textPath></text>
     <text font-size="13" font-weight="800" fill="${color}" stroke="none" letter-spacing="1"><textPath href="#b${id}" startOffset="50%" text-anchor="middle">${esc(dotDate(date))}</textPath></text>
-    <circle cx="100" cy="64" r="13" fill="${color}" stroke="none"/>
-    <text x="100" y="70" text-anchor="middle" font-size="16" font-weight="800" fill="#fff" stroke="none">${lineN}</text>
+    ${isText(L) ? `<rect x="72" y="52" width="56" height="24" rx="12" fill="${color}" stroke="none"/>` : `<circle cx="100" cy="64" r="13" fill="${color}" stroke="none"/>`}
+    <text x="100" y="${(64 + tagSize * 0.36).toFixed(1)}" text-anchor="middle" font-size="${tagSize.toFixed(1)}" font-weight="800" fill="${L.ink === '#fff' ? '#fff' : L.ink}" stroke="none">${esc(tag)}</text>
     ${text}
   </g>
 </svg>`;
@@ -619,13 +656,13 @@
 
   function legsHTML(r, dest) {
     const items = [];
-    items.push(`<li class="leg"><span class="rb rb-train">${TRAIN_SVG}</span><div class="rt"><b>${ORIGIN} → ${esc(r.entry.name)}</b><span class="sub">${esc(r.entry.train)} <a href="https://www.letskorail.com" target="_blank" rel="noopener">열차 시각 확인</a></span></div></li>`);
+    if (r.entry.train) items.push(`<li class="leg"><span class="rb rb-train">${TRAIN_SVG}</span><div class="rt"><b>${ORIGIN} → ${esc(label(r.entry.name))}</b><span class="sub">${esc(r.entry.train)} <a href="https://www.letskorail.com" target="_blank" rel="noopener">열차 시각 확인</a></span></div></li>`);
     r.segments.forEach((s, i) => {
       const L = LINE[s.line];
       const next = r.segments[i + 1];
-      const dir = s.loopDir ? s.loopDir + ' ' + esc(s.via[1]) + ' 방향' : esc(s.via[1]) + ' 방면';
+      const dir = s.loopDir ? s.loopDir + ' ' + esc(label(s.via[1])) + ' 방향' : esc(label(s.via[1])) + ' 방면';
       const fork = s.branch ? ` ${esc(s.branch.at)}에서 ${esc(s.branch.name)}으로 가는 열차인지 행선지를 확인하세요.` : '';
-      items.push(`<li class="leg" style="--c:${L.color}"><span class="rb" style="background:${L.color};color:${L.ink}">${L.n}</span><div class="rt"><b>${esc(segLabel(s))} ${esc(s.from)}에서 ${dir}</b><span class="sub">${s.stops}정거장, ${next ? esc(s.to) + '에서 ' + esc(segLabel(next)) + '으로 환승' : esc(s.to) + '에서 내려요'}${fork}</span></div></li>`);
+      items.push(`<li class="leg" style="--c:${L.color}"><span class="rb${isText(L) ? ' txt' : ''}" style="background:${L.color};color:${L.ink}">${esc(lineShort(L))}</span><div class="rt"><b>${esc(segLabel(s))} ${esc(label(s.from))}에서 ${dir}</b><span class="sub">${s.stops}정거장, ${next ? esc(label(s.to)) + '에서 ' + esc(segLabel(next)) + '으로 환승' : esc(label(s.to)) + '에서 내려요'}${fork}</span></div></li>`);
     });
     items.push(`<li class="leg end"><span class="rb rb-end"></span><div class="rt"><b>${esc(stationQuery(dest))} 도착</b></div></li>`);
     return `<ol class="route">${items.join('')}</ol>`;
@@ -637,9 +674,9 @@
     const best = rs[0];
     const alts = rs.slice(1, 3).map((r) => {
       const lines = r.segments.length ? r.segments.map(segLabel).join(' → ') : '열차에서 바로 내려요';
-      return `<li><b>${esc(r.entry.name)}</b>에서 시작, ${lines}, 환승 ${r.transfers}회, ${r.stops}정거장</li>`;
+      return `<li><b>${esc(label(r.entry.name))}</b>에서 시작, ${lines}, 환승 ${r.transfers}회, ${r.stops}정거장</li>`;
     }).join('');
-    const summary = best.segments.length ? `환승 ${best.transfers}회, 지하철 ${best.stops}정거장` : '열차에서 바로 도착';
+    const summary = best.segments.length ? `환승 ${best.transfers}회, 지하철 ${best.stops}정거장` : best.entry.train ? '열차에서 바로 도착' : '출발역이에요';
     return `<p class="route-sum">${esc(summary)}</p>${legsHTML(best, dest)}
       ${alts ? `<details class="alts"><summary>다른 경로 ${rs.length - 1}개</summary><ul>${alts}</ul></details>` : ''}
       <p class="hint">정차역과 열차 시각은 바뀔 수 있어요. 타기 전에 코레일에서 확인하세요.</p>`;
@@ -755,6 +792,18 @@
     <label class="switch"><input type="checkbox" id="optVoice"><span class="box" aria-hidden="true"></span><span>안내방송</span></label>
   </section>
   <section class="settings">
+    <h3>뽑기 범위</h3>
+    <fieldset class="scope">
+      <legend class="sr">뽑을 역의 지역</legend>
+      <label class="radio"><input type="radio" name="scope" value="seoul"><span class="dot" aria-hidden="true"></span><span>서울</span></label>
+      <label class="radio"><input type="radio" name="scope" value="all"><span class="dot" aria-hidden="true"></span><span>수도권 전체</span></label>
+    </fieldset>
+    <fieldset class="linepick" id="linePick">
+      <legend>뽑기에 넣을 노선</legend>
+    </fieldset>
+    <p class="hint">끈 노선과 범위 밖 역의 도장도 지워지지 않고 남아요. 길 안내는 모든 노선으로 찾아요.</p>
+  </section>
+  <section class="settings">
     <h3>백업</h3>
     <p class="hint">기록은 이 브라우저에만 저장돼요. 기기를 바꾸기 전에 내보내 두세요.</p>
     <div class="backup-actions">
@@ -780,6 +829,23 @@
       if (!state.voice && 'speechSynthesis' in window) window.speechSynthesis.cancel();
     });
 
+    /* 뽑기 범위: 지역(서울/수도권 전체)과 노선별 켜기 */
+    dr.querySelectorAll('input[name="scope"]').forEach((r) => {
+      r.checked = r.value === state.scope;
+      r.addEventListener('change', () => { if (r.checked) { state.scope = r.value; save(); emit('settings'); } });
+    });
+    const linePick = $('#linePick', dr);
+    LINES.forEach((L) => {
+      const lab = document.createElement('label');
+      lab.className = 'switch lp';
+      lab.innerHTML = `<input type="checkbox" data-line="${esc(L.n)}"><span class="box" aria-hidden="true"></span>` +
+        `<span class="lbadge${isText(L) ? ' txt' : ''}" style="background:${L.color};color:${L.ink}" aria-hidden="true">${esc(lineShort(L))}</span><span>${esc(lineName(L))}</span>`;
+      const cb = $('input', lab);
+      cb.checked = lineOn(L);
+      cb.addEventListener('change', () => { state.lines[L.n] = cb.checked; save(); emit('settings'); });
+      linePick.append(lab);
+    });
+
     async function renderGallery() {
       const box = $('#gallery', dr);
       const names = Object.keys(state.stamps).filter((n) => STATIONS.has(n));
@@ -792,7 +858,7 @@
         tile.type = 'button';
         tile.className = 'tile';
         const u = st.p ? await photoURL(n) : null;
-        tile.innerHTML = `<span class="tile-img">${u ? `<img src="${u}" alt="">` : sealSVG(n, st.l || STATIONS.get(n).lines[0], st.d)}</span><span class="tile-name">${esc(n)}</span>`;
+        tile.innerHTML = `<span class="tile-img">${u ? `<img src="${u}" alt="">` : sealSVG(n, st.l || STATIONS.get(n).lines[0], st.d)}</span><span class="tile-name">${esc(label(n))}</span>`;
         tile.addEventListener('click', () => { close(); opts.onSelect(n, st.l || STATIONS.get(n).lines[0]); });
         box.append(tile);
       }
@@ -801,8 +867,10 @@
     function renderRecord() {
       const box = $('#record', dr);
       box.replaceChildren();
-      LINES.forEach((L) => {
-        const stamped = L.all.filter((n) => state.stamps[n]).length;
+      activeLines().forEach((L) => {
+        const all = L.all.filter(inScope);
+        if (!all.length) return;
+        const stamped = all.filter((n) => state.stamps[n]).length;
         const wrap = document.createElement('div');
         wrap.className = 'rline';
         wrap.style.setProperty('--c', L.color);
@@ -810,12 +878,12 @@
         const o = openLines.has(L.n);
         wrap.innerHTML = `
           <button type="button" class="rhead" aria-expanded="${o}" aria-controls="rc${L.n}">
-            <span class="rbadge" style="background:${L.color};color:${L.ink}">${L.n}</span>
-            <span class="rbar" aria-hidden="true">${L.all.map((n) => `<i class="${state.stamps[n] ? 'on' : ''}"></i>`).join('')}</span>
-            <span class="rcnt">${stamped} / ${L.all.length}</span>
+            <span class="rbadge${isText(L) ? ' txt' : ''}" style="background:${L.color};color:${L.ink}" aria-label="${esc(lineName(L))}">${esc(lineShort(L))}</span>
+            <span class="rbar" aria-hidden="true">${all.map((n) => `<i class="${state.stamps[n] ? 'on' : ''}"></i>`).join('')}</span>
+            <span class="rcnt">${stamped} / ${all.length}</span>
           </button>
           <div class="rchips" id="rc${L.n}" ${o ? '' : 'hidden'}>
-            ${L.all.map((n) => `<button type="button" class="chip ${state.stamps[n] ? 'on' : ''}" data-n="${esc(n)}">${esc(n)}</button>`).join('')}
+            ${all.map((n) => `<button type="button" class="chip ${state.stamps[n] ? 'on' : ''}" data-n="${esc(n)}">${esc(label(n))}</button>`).join('')}
           </div>`;
         const head = $('.rhead', wrap), chipsBox = $('.rchips', wrap);
         head.addEventListener('click', () => {
@@ -833,8 +901,9 @@
     }
 
     function renderAll() {
-      const done = [...STATIONS.keys()].filter((n) => state.stamps[n]).length;
-      $('#drawerSum', dr).textContent = '도장 ' + done + ' / ' + STATIONS.size + '역';
+      const p = pool();
+      const done = [...p].filter((n) => state.stamps[n]).length;
+      $('#drawerSum', dr).textContent = '도장 ' + done + ' / ' + p.size + '역' + (p.size ? '' : ' · 설정에서 노선을 켜 주세요');
       renderRecord();
       renderGallery();
     }
@@ -878,6 +947,7 @@
       else if (!e.shiftKey && (document.activeElement === last || !dr.contains(document.activeElement))) { e.preventDefault(); first.focus(); }
     });
     on('stamps', () => { if (isOpen) renderAll(); });
+    on('settings', () => { if (isOpen) renderAll(); });
 
     $('#export', dr).addEventListener('click', async () => {
       const note = $('#backupNote', dr);
@@ -911,15 +981,18 @@
   /* 기록 버튼에 도장 수를 표시 */
   function bindCount(btn) {
     const paint = () => {
-      const done = [...STATIONS.keys()].filter((n) => state.stamps[n]).length;
-      btn.textContent = '기록 ' + done + ' / ' + STATIONS.size;
+      const p = pool();
+      const done = [...p].filter((n) => state.stamps[n]).length;
+      btn.textContent = '기록 ' + done + ' / ' + p.size;
     };
     paint();
     on('stamps', paint);
+    on('settings', paint);
   }
 
   window.Core = {
     LINES, LINE, STATIONS, ORIGIN, state, save, on, emit, reduced, sleep, esc,
+    lineName, lineShort, lineEn, isText, label, lineOn, inScope, activeLines, pool,
     trackFor, neighbors, stationQuery, mapLinks, today, dotDate,
     draw, eligible, routesTo, photoURL, sealSVG, stampPlain, stampWithFile, unstamp,
     renderInfo, mountDrawer, bindCount, tone, thud, chime,

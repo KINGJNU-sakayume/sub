@@ -7,7 +7,7 @@
   const reduced = C.reduced;
 
   const D = {
-    sign: $('#sign'), num: $('#badgeNum'), ko: $('#ko'), en: $('#en'),
+    sign: $('#sign'), badge: $('#badge'), num: $('#badgeNum'), ko: $('#ko'), en: $('#en'),
     prev: $('#prev'), prevName: $('#prevName'), next: $('#next'), nextName: $('#nextName'),
     xfer: $('#xfer'), draw: $('#draw'), board: $('#board'), note: $('#note'),
     live: $('#live'), unvisited: $('#unvisited'), sticker: $('#stickerSlot'),
@@ -17,7 +17,9 @@
     const L = n ? LINE[n] : null;
     D.sign.style.setProperty('--line', L ? L.color : '#2b3136');
     D.sign.style.setProperty('--ink-on', L ? L.ink : '#fff');
-    D.num.textContent = L ? L.n : '';
+    D.num.textContent = L ? C.lineShort(L) : '';
+    D.badge.classList.toggle('txt', !!L && C.isText(L));
+    D.badge.dataset.len = L ? [...C.lineShort(L)].length : 0;
   }
   function slide(node, dur) {
     if (reduced || !node.animate) return;
@@ -33,8 +35,8 @@
     slide(D.ko, dur);
   }
   function setNeighbors(p, q) {
-    D.prevName.textContent = p || '';
-    D.nextName.textContent = q || '';
+    D.prevName.textContent = p ? C.label(p) : '';
+    D.nextName.textContent = q ? C.label(q) : '';
     D.prev.style.visibility = p ? 'visible' : 'hidden';
     D.next.style.visibility = q ? 'visible' : 'hidden';
   }
@@ -48,11 +50,11 @@
     D.xfer.append(label);
     others.forEach((n) => {
       const b = document.createElement('span');
-      b.className = 'xbadge';
-      b.textContent = n;
+      b.className = 'xbadge' + (C.isText(LINE[n]) ? ' txt' : '');
+      b.textContent = C.lineShort(LINE[n]);
       b.style.background = LINE[n].color;
       b.style.color = LINE[n].ink;
-      b.setAttribute('aria-label', n + '호선');
+      b.setAttribute('aria-label', C.lineName(LINE[n]));
       D.xfer.append(b);
     });
   }
@@ -62,7 +64,7 @@
     const tr = track || C.trackFor(L, name);
     const { p, q } = C.neighbors(tr, name);
     paintLine(lineN);
-    setKo(name, dur);
+    setKo(st.label, dur);
     D.en.textContent = st.en;
     setNeighbors(p, q);
     setXfer(st, lineN);
@@ -84,7 +86,7 @@
       if (!u || !cur || cur.name !== name) return;
       const img = document.createElement('img');
       img.src = u;
-      img.alt = name + ' 도장';
+      img.alt = C.label(name) + ' 도장';
       wrap.append(img);
     } else {
       wrap.innerHTML = C.sealSVG(name, st.l || cur.line, st.d);
@@ -101,7 +103,7 @@
       void D.sign.offsetWidth;
       D.sign.classList.add('settle');
     }
-    D.live.textContent = res.line + '호선 ' + C.stationQuery(res.name) + '이 나왔어요.';
+    D.live.textContent = C.lineName(LINE[res.line]) + ' ' + C.stationQuery(res.name) + '이 나왔어요.';
     C.renderInfo(D.board, cur);
     D.board.hidden = false;
     updateSticker(false);
@@ -123,8 +125,8 @@
       },
       line(n, d) {
         paintLine(n);
-        setKo(n + '호선', d);
-        D.en.textContent = 'Line ' + n;
+        setKo(C.lineName(LINE[n]), d);
+        D.en.textContent = C.lineEn(LINE[n]);
       },
       station(name, L, tr, d) { showStation(name, L.n, d, tr); },
     });
@@ -132,7 +134,9 @@
     D.draw.disabled = false;
     D.draw.textContent = '다시 뽑기';
     if (!res) {
-      D.note.textContent = '모든 역에 도장을 찍었어요. 아래 옵션을 끄면 다시 뽑을 수 있어요.';
+      D.note.textContent = C.pool().size
+        ? '이 범위의 역은 모두 도장을 찍었어요. 아래 옵션을 끄거나 기록 > 뽑기 범위에서 노선을 더 켜 보세요.'
+        : '뽑을 노선이 없어요. 기록 > 뽑기 범위에서 노선을 켜 주세요.';
       return;
     }
     settle(res);
@@ -143,7 +147,7 @@
     cur = { name, line: lineN };
     D.sign.dataset.state = 'settled';
     showStation(name, lineN, 0);
-    D.live.textContent = lineN + '호선 ' + C.stationQuery(name);
+    D.live.textContent = C.lineName(LINE[lineN]) + ' ' + C.stationQuery(name);
     C.renderInfo(D.board, cur);
     D.board.hidden = false;
     updateSticker(false);

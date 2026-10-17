@@ -68,7 +68,10 @@
   const $ = (s) => document.querySelector(s);
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-  const query = (name) => (name.endsWith('역') ? name : name + '역');
+  /* 역 키 '신촌(경의중앙)'은 괄호를 빼고 검색해요. 같은 이름 역은 노선명으로 가려요 */
+  const query = (name) => { const t = name.replace(/\(.+\)$/, ''); return t.endsWith('역') ? t : t + '역'; };
+  const LINE = Object.fromEntries(LINES.map((L) => [L.n, L]));
+  const kakaoLine = (n) => LINE[n].kakao || n + '호선';
   const FAR = 150;
 
   const stations = new Map();
@@ -120,7 +123,7 @@
     const r = await search(places, 'keywordSearch', q, { category_group_code: 'SW8', location: loc, radius: 5000, sort: S.SortBy.DISTANCE });
     if (r.status === S.Status.ERROR) return { name, lines, old, error: true };
     const named = r.data.filter((p) => head(p.place_name) === q);
-    const onLine = named.filter((p) => lines.some((n) => p.place_name.includes(n + '호선')));
+    const onLine = named.filter((p) => lines.some((n) => p.place_name.includes(kakaoLine(n))));
     const use = onLine.length ? onLine : named.slice(0, 1);
     if (!use.length) {
       const near = await search(places, 'categorySearch', 'SW8', { location: loc, radius: 800, sort: S.SortBy.DISTANCE });
@@ -161,7 +164,7 @@
 
   function newGeoSource() {
     const byName = new Map(results.filter((r) => r.now).map((r) => [r.name, r.now]));
-    return geoSource.replace(/([가-힣A-Za-z0-9]+):(\d+\.\d+),(\d+\.\d+)/g, (m, n) => {
+    return geoSource.replace(/([^'|:\s]+):(\d+\.\d+),(\d+\.\d+)/g, (m, n) => {
       const v = byName.get(n);
       return v ? `${n}:${v[0]},${v[1]}` : m;
     });
