@@ -5,7 +5,7 @@
   const {
     LINES, $, reduced, esc, lineName, isText, lineShort, label, STATIONS, today, on, emit, state, save,
     current, lineOn, inScope, activeLines, pool, photoURL, tts, unlockVoice, announce, exportJSON,
-    importJSON, sealSVG,
+    importJSON, sealSVG, voiceName,
   } = C;
 
   /* ---------- 기록 서랍 ---------- */
@@ -29,7 +29,8 @@
   <section class="settings">
     <h3>설정</h3>
     <label class="switch"><input type="checkbox" id="optSound"><span class="box" aria-hidden="true"></span><span>소리</span></label>
-    <label class="switch"><input type="checkbox" id="optVoice"><span class="box" aria-hidden="true"></span><span>안내방송 (기기 음성으로 흉내)</span></label>
+    <label class="switch"><input type="checkbox" id="optVoice"><span class="box" aria-hidden="true"></span><span>안내방송</span></label>
+    <p class="hint" id="voiceInfo"></p>
     <button type="button" class="pill" id="voiceTry">안내방송 들어 보기</button>
   </section>
   <section class="settings">
@@ -71,6 +72,16 @@
     });
     const voiceTry = $('#voiceTry', dr);
     if (!tts) voiceTry.hidden = true;
+    /* 지금 쓰는 음성과, 더 자연스러운 음성을 받는 방법 */
+    const voiceInfo = $('#voiceInfo', dr);
+    const paintVoice = () => {
+      const n = tts ? voiceName() : '';
+      if (!tts) { voiceInfo.textContent = '이 브라우저는 음성 안내를 지원하지 않아요.'; return; }
+      voiceInfo.textContent = /premium|enhanced|프리미엄|향상/i.test(n)
+        ? `지금 음성: ${n}. 향상된 음성을 쓰고 있어요.`
+        : `지금 음성: ${n || '기본'}. 아이폰 설정 › 손쉬운 사용 › 읽기 및 말하기 › 음성 › 한국어에서 '유나'의 향상된 음성을 내려받으면 훨씬 자연스러워요. 환승역에서는 짧은 국악풍 음악이 먼저 나와요.`;
+    };
+    if (tts && tts.addEventListener) tts.addEventListener('voiceschanged', paintVoice);
     voiceTry.addEventListener('click', () => {
       const c = current() || { name: '왕십리', line: 2 };
       const was = state.voice;
@@ -163,6 +174,7 @@
       if (isOpen) return;
       isOpen = true;
       renderAll();
+      paintVoice();
       scrim.hidden = false;
       dr.hidden = false;
       requestAnimationFrame(() => { scrim.classList.add('on'); dr.classList.add('on'); });
