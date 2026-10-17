@@ -1,0 +1,82 @@
+/* 방안2: 지도 화면 */
+html, body { height: 100%; }
+body { display: flex; flex-direction: column; background: #f3f4f2; overflow: hidden; }
+.top { padding: 12px 20px; background: #f3f4f2; border-bottom: 1px solid #dfe2df; flex: none; }
+.stage { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 460px; }
+.mapbox { position: relative; min-height: 0; }
+#map { position: absolute; inset: 0; background: #e9ebe8; }
+.maperr { position: absolute; z-index: 500; left: 50%; top: 40%; transform: translateX(-50%); margin: 0; padding: 14px 20px; background: #fff; border-radius: 8px; font-weight: 700; box-shadow: 0 6px 20px rgba(0,0,0,.2); }
+.maperr[hidden] { display: none; }
+.leaflet-tile-pane { filter: grayscale(1) contrast(.92) brightness(1.04); }
+.leaflet-container { font-family: var(--font); }
+
+.dock {
+  position: absolute; z-index: 600; left: 50%; bottom: 28px; transform: translateX(-50%);
+  display: flex; align-items: center; gap: 16px 22px; flex-wrap: wrap; justify-content: center;
+  padding: 10px 16px; max-width: calc(100% - 24px);
+  background: rgba(255, 255, 255, .94); border-radius: 999px; box-shadow: 0 8px 24px rgba(20, 28, 34, .28);
+}
+.dock .draw { padding: 12px 34px; font-size: 1.1rem; }
+.dock .switch { font-size: .92rem; }
+.mapbox > .note {
+  position: absolute; z-index: 600; left: 50%; bottom: 96px; transform: translateX(-50%);
+  margin: 0; padding: 0; background: #fff; border-radius: 6px; max-width: calc(100% - 24px);
+}
+.mapbox > .note:empty { display: none; }
+.mapbox > .note:not(:empty) { padding: 6px 12px; box-shadow: 0 4px 12px rgba(0,0,0,.2); }
+
+.panel { position: relative; min-height: 0; overflow: auto; background: var(--board); color: var(--board-ink); border-left: 1px solid #000; }
+.panel[hidden] { display: none; }
+.panel-toggle { display: none; }
+.panel-head { display: flex; align-items: center; gap: 14px; padding: 20px 24px 16px; border-bottom: 1px solid var(--board-rule); }
+.ph-badge { flex: none; display: grid; place-items: center; width: 44px; height: 44px; border-radius: 50%; font-size: 1.4rem; font-weight: 800; line-height: 1; }
+.ph-ko { font-size: 1.7rem; font-weight: 900; letter-spacing: -.02em; line-height: 1.15; }
+.ph-en { font-size: .95rem; color: var(--board-muted); }
+.ph-x { margin-left: auto; display: flex; gap: 6px; }
+.ph-x .xbadge { display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; font-size: .85rem; font-weight: 800; line-height: 1; }
+.panel .board { margin: 0; background: transparent; box-shadow: none; border-radius: 0; }
+.panel .info-grid { grid-template-columns: 1fr; }
+.panel .sect { padding: 20px 24px 12px; }
+.panel .sect + .sect { border-left: 0; border-top: 1px solid var(--board-rule); }
+.panel .stampbar { padding: 16px 24px; }
+.panel .place { grid-template-columns: 3.4rem minmax(0, 1fr); }
+.panel .plinks { grid-column: 2; }
+.panel .pdesc { display: block; margin: 2px 0 0; }
+
+/* 지도 위 표지들 */
+.st-dot { background: #fff; border-radius: 50%; }
+.big-marker { position: relative; width: 0; height: 0; }
+.big-marker .core-dot {
+  position: absolute; left: -15px; top: -15px; width: 30px; height: 30px; border-radius: 50%;
+  background: #fff; border: 7px solid var(--c); box-shadow: 0 0 0 3px #fff, 0 4px 10px rgba(0,0,0,.4);
+}
+.big-marker .pulse {
+  position: absolute; left: -15px; top: -15px; width: 30px; height: 30px; border-radius: 50%;
+  border: 3px solid var(--c); animation: pulse 1.8s ease-out infinite;
+}
+@keyframes pulse { 0% { transform: scale(1); opacity: .9; } 100% { transform: scale(3.2); opacity: 0; } }
+.nameplate {
+  position: absolute; left: 24px; top: -22px; display: flex; align-items: center; gap: 8px; white-space: nowrap;
+  padding: 5px 14px 5px 6px; background: #fff; border-radius: 999px; box-shadow: 0 4px 14px rgba(0,0,0,.35);
+  border: 2px solid var(--c); font-weight: 900; font-size: 1.15rem; letter-spacing: -.02em;
+}
+.nameplate i {
+  font-style: normal; display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%;
+  background: var(--c); color: var(--k); font-size: .95rem; font-weight: 800; line-height: 1;
+}
+.hop-marker .core-dot { border-width: 5px; }
+.tip { font-family: var(--font); font-weight: 700; border: 0; border-radius: 4px; }
+
+@media (max-width: 860px) {
+  .stage { grid-template-columns: 1fr; grid-template-rows: minmax(0, 1fr) auto; }
+  .top { padding: 10px 16px; flex-wrap: wrap; }
+  .panel { max-height: 52vh; border-left: 0; border-top: 1px solid #000; }
+  .panel.collapsed { max-height: none; overflow: hidden; }
+  .panel.collapsed .board { display: none; }
+  .panel-toggle {
+    display: block; position: sticky; top: 0; z-index: 2; width: 100%; padding: 10px; border: 0;
+    background: #1b2024; color: var(--board-ink); font-weight: 700; cursor: pointer;
+  }
+  .dock { bottom: 14px; }
+  .mapbox > .note { bottom: 82px; }
+}
