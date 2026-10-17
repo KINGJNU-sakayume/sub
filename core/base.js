@@ -173,5 +173,10 @@
     if (u) { URL.revokeObjectURL(u); urls.delete(name); }
   }
 
+  /* 오프라인에서도 열리게 사이트 파일을 기기에 저장해 둬요 (sw.js) */
+  if ('serviceWorker' in navigator && window.isSecureContext) {
+    window.addEventListener('load', () => { navigator.serviceWorker.register('sw.js').catch(() => {}); });
+  }
+
   Object.assign(C, { LINES, EN, CURATED, RENAMED, $, reduced, sleep, rand, enc, esc, REGION, ACCESS, LINE, ORIGIN, lineName, isText, lineShort, lineEn, label, ro, STATIONS, lineOrder, trackFor, neighbors, stationQuery, mapLinks, today, dotDate, handlers, on, emit, KEY, state, save, current, setCurrent, lineOn, inScope, activeLines, pool, renamedPhotos, DB, photosReady, urls, photoURL, dropURL });
 })();

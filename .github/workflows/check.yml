@@ -19,7 +19,7 @@ jobs:
 
       - name: Check scripts
         run: |
-          for f in data.js geo.js access.js core/*.js sign.js map.js; do node --check "$f"; done
+          for f in data.js geo.js access.js core/*.js sign.js map.js sw.js; do node --check "$f"; done
 
       - name: Check curated draft
         run: |

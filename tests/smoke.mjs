@@ -106,6 +106,27 @@ console.log('사진 도장 (배경 제거 없이)');
   await p.context().close();
 }
 
+console.log('오프라인');
+{
+  const ctx = await browser.newContext({ ...devices['iPhone 15 Pro'], deviceScaleFactor: 1 });
+  const p = await ctx.newPage();
+  const errors = [];
+  p.on('pageerror', (e) => errors.push(e.message));
+  await p.goto(BASE + 'index.html');
+  await p.evaluate(() => navigator.serviceWorker.ready);
+  await p.reload();                      // 서비스 워커가 이 페이지를 맡은 뒤
+  await p.waitForFunction(() => !!navigator.serviceWorker.controller);
+  await ctx.setOffline(true);
+  await p.reload();
+  await p.waitForFunction(() => window.Core && window.Core.draw, null, { timeout: 10000 });
+  ok(true, '인터넷 없이 역명판 화면이 다시 열림');
+  await p.goto(BASE + 'map.html');
+  await p.waitForFunction(() => window.Core && document.querySelector('#draw'), null, { timeout: 10000 });
+  ok(true, '인터넷 없이 지도 화면도 열림');
+  ok(!errors.filter((m) => !/Leaflet|L is not defined/.test(m)).length, '자바스크립트 오류 없음' + (errors.length ? ': ' + errors[0] : ''));
+  await ctx.close();
+}
+
 console.log('기록 서랍');
 {
   const p = await page(seed({ stamps: { '왕십리': { d: '2026-10-17', l: 'GJ' } } }));
