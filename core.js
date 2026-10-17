@@ -19,8 +19,8 @@
   /* 노선·역 표시 이름 */
   const lineName = (L) => L.name || L.n + '호선';
   const isText = (L) => typeof L.n !== 'number';          // 숫자 대신 글자 배지를 쓰는 노선
-  /* 배지 글자: 모든 배지를 같은 크기의 원으로 그리려고 글자 노선은 앞 두 글자만 써요 ('경의중앙' → '경의') */
-  const lineShort = (L) => (isText(L) ? [...(L.short || L.name || String(L.n))].slice(0, 2).join('') : String(L.n));
+  /* 배지 글자: 숫자 노선은 원, 글자 노선은 같은 높이의 둥근 사각에 이름 그대로 ('경의중앙') */
+  const lineShort = (L) => L.short || String(L.n);
   const lineEn = (L) => L.en || 'Line ' + L.n;
   const label = (key) => String(key).replace(/\(.+\)$/, '');  // '신촌(경의중앙)' → '신촌'
   /* 받침에 맞춰 '로/으로': '공항철도로', '2호선으로', '경의중앙선으로' (ㄹ 받침도 '로') */
@@ -593,28 +593,120 @@
     dropURL(name);
   }
 
-  async function stampWithFile(name, lineN, file, onStatus) {
+  /* 배경 제거 결과의 흐릿한 잔상을 지워요. level 0~0.9: 이보다 옅은 부분은 투명, 나머지는 다시 진하게 */
+  function cleanCut(cut, level) {
+    const c = document.createElement('canvas');
+    c.width = cut.width;
+    c.height = cut.height;
+    const ctx = c.getContext('2d');
+    ctx.drawImage(cut, 0, 0);
+    const img = ctx.getImageData(0, 0, c.width, c.height), d = img.data;
+    const t = level * 255;
+    let ink = 0;
+    for (let i = 3; i < d.length; i += 4) {
+      const a = d[i] <= t ? 0 : Math.round(((d[i] - t) * 255) / (255 - t));
+      d[i] = a;
+      if (a > 16) ink++;
+    }
+    ctx.putImageData(img, 0, 0);
+    return { canvas: c, ink };
+  }
+
+  /* 사진 → 스티커. choose({ photo, cut, make })가 있으면 사용자가 고른 스티커를 써요(null이면 취소) */
+  async function stampWithFile(name, lineN, file, onStatus, choose) {
     const say = onStatus || (() => {});
     say('사진 줄이는 중…');
     const photo = await fileToCanvas(file, 1024);
-    let sticker = null;
-    let cut = true;
+    let cut = null;
     try {
       say('배경 지우는 중… 폰에서는 20~40초쯤 걸려요');
-      const c = await cutOut(photo, say);
-      sticker = stickerFromCutout(c);
+      cut = await cutOut(photo, say);
     } catch (e) {
       console.warn('배경 제거 실패, 사진 그대로 사용', e);
-      cut = false;
-      sticker = stickerFromPhoto(photo);
+    }
+    const make = (mode, level) => {
+      if (mode === 'photo' || !cut) return { canvas: stickerFromPhoto(photo), ink: 1 };
+      const c = cleanCut(cut, level);
+      return { canvas: c.ink ? stickerFromCutout(c.canvas) : c.canvas, ink: c.ink };
+    };
+    let sticker;
+    if (choose) {
+      say('스티커 모양을 골라 주세요');
+      sticker = await choose({ photo, cut, make });
+      if (!sticker) return { cancelled: true, cut: !!cut };
+    } else {
+      sticker = make(cut ? 'cut' : 'photo', DEFAULT_CLEAN).canvas;
     }
     await savePhoto(name, sticker);
     const prev = state.stamps[name];
     state.stamps[name] = { d: prev ? prev.d : today(), l: prev && prev.l ? prev.l : lineN, p: 1 };
     save();
     thud();
-    emit('stamps', { name, fresh: !prev, cut });
-    return { cut };
+    emit('stamps', { name, fresh: !prev, cut: !!cut });
+    return { cut: !!cut };
+  }
+
+  /* ---------- 스티커 다듬기 창 ---------- */
+  const DEFAULT_CLEAN = 0.2;
+  function editSticker({ cut, make }) {
+    return new Promise((resolve) => {
+      const scrim = document.createElement('div');
+      scrim.className = 'scrim on';
+      scrim.style.zIndex = 2999;
+      const box = document.createElement('div');
+      box.className = 'editor';
+      box.setAttribute('role', 'dialog');
+      box.setAttribute('aria-modal', 'true');
+      box.setAttribute('aria-labelledby', 'edTitle');
+      box.innerHTML = `
+<h2 id="edTitle">스티커 다듬기</h2>
+<div class="ed-stage"><canvas class="ed-canvas" role="img" aria-label="스티커 미리보기"></canvas></div>
+<div class="ed-seg" role="group" aria-label="스티커 모양">
+  <button type="button" data-mode="cut" aria-pressed="${cut ? 'true' : 'false'}" ${cut ? '' : 'disabled'}>배경 지우기</button>
+  <button type="button" data-mode="photo" aria-pressed="${cut ? 'false' : 'true'}">사진 그대로</button>
+</div>
+<label class="ed-slider" ${cut ? '' : 'hidden'}><span>잔상 지우기</span><input type="range" id="edLevel" min="0" max="85" step="5" value="${DEFAULT_CLEAN * 100}"><output id="edOut"></output></label>
+<p class="ed-hint" id="edHint">${cut ? '흐릿하게 남은 부분이 있으면 오른쪽으로, 필요한 부분까지 지워지면 왼쪽으로 옮겨 보세요. 역명판처럼 판이 사진을 꽉 채우면 사진 그대로가 잘 맞아요.' : '배경을 지우지 못했어요. 사진을 둥근 스티커로 붙여요.'}</p>
+<div class="ed-actions"><button type="button" class="pill" data-act="cancel">취소</button><button type="button" class="ed-ok" data-act="ok">붙이기</button></div>`;
+      document.body.append(scrim, box);
+      const cv = $('.ed-canvas', box), range = $('#edLevel', box), out = $('#edOut', box), ok = $('[data-act="ok"]', box), hint = $('#edHint', box);
+      const HINT = {
+        cut: '흐릿하게 남은 부분이 있으면 오른쪽으로, 필요한 부분까지 지워지면 왼쪽으로 옮겨 보세요. 역명판처럼 판이 사진을 꽉 채우면 사진 그대로가 잘 맞아요.',
+        photo: cut ? '사진을 자르지 않고 둥근 스티커로 붙여요.' : '배경을 지우지 못했어요. 사진을 둥근 스티커로 붙여요.',
+      };
+      let mode = cut ? 'cut' : 'photo', cur = null, queued = false;
+      const paint = () => {
+        queued = false;
+        cur = make(mode, Number(range.value) / 100);
+        out.textContent = range.value + '%';
+        cv.width = cur.canvas.width;
+        cv.height = cur.canvas.height;
+        cv.getContext('2d').drawImage(cur.canvas, 0, 0);
+        ok.disabled = !cur.ink;
+        hint.textContent = cur.ink ? HINT[mode] : '다 지워졌어요. 슬라이더를 왼쪽으로 옮겨 주세요.';
+      };
+      const later = () => { if (!queued) { queued = true; requestAnimationFrame(paint); } };
+      box.querySelectorAll('[data-mode]').forEach((b) => b.addEventListener('click', () => {
+        mode = b.dataset.mode;
+        box.querySelectorAll('[data-mode]').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+        $('.ed-slider', box).hidden = mode !== 'cut';
+        later();
+      }));
+      range.addEventListener('input', later);
+      const done = (v) => {
+        document.removeEventListener('keydown', onKey);
+        scrim.remove();
+        box.remove();
+        resolve(v);
+      };
+      const onKey = (e) => { if (e.key === 'Escape') done(null); };
+      document.addEventListener('keydown', onKey);
+      scrim.addEventListener('click', () => done(null));
+      $('[data-act="cancel"]', box).addEventListener('click', () => done(null));
+      ok.addEventListener('click', () => { if (cur && cur.ink) done(cur.canvas); });
+      paint();
+      ok.focus();
+    });
   }
 
   function stampPlain(name, lineN) {
@@ -695,7 +787,7 @@
     const y0 = two ? 100 : 108;
     const text = rows.map((r, i) => `<text x="100" y="${y0 + i * (fs + 4)}" text-anchor="middle" font-size="${fs.toFixed(1)}" font-weight="900" fill="${color}" stroke="none">${esc(r)}</text>`).join('');
     const tag = lineShort(L);
-    const tagSize = isText(L) ? 11 : 16;
+    const tagSize = isText(L) ? Math.min(13, 44 / Math.max(1, [...tag].length)) : 16;
     return `<svg class="seal" viewBox="0 0 200 200" role="img" aria-label="${esc(shown)} 도장" font-family="Gothic A1, sans-serif">
   <defs>
     <filter id="f${id}" x="-5%" y="-5%" width="110%" height="110%">
@@ -711,7 +803,7 @@
     <circle cx="100" cy="100" r="59" stroke-width="1.5"/>
     <text font-size="13" font-weight="800" fill="${color}" stroke="none" letter-spacing="2"><textPath href="#t${id}" startOffset="50%" text-anchor="middle">서울 지하철</textPath></text>
     <text font-size="13" font-weight="800" fill="${color}" stroke="none" letter-spacing="1"><textPath href="#b${id}" startOffset="50%" text-anchor="middle">${esc(dotDate(date))}</textPath></text>
-    <circle cx="100" cy="64" r="14" fill="${color}" stroke="none"/>
+    ${isText(L) ? `<rect x="70" y="51" width="60" height="26" rx="8" fill="${color}" stroke="none"/>` : `<circle cx="100" cy="64" r="14" fill="${color}" stroke="none"/>`}
     <text x="100" y="${(64 + tagSize * 0.36).toFixed(1)}" text-anchor="middle" font-size="${tagSize.toFixed(1)}" font-weight="800" fill="${L.ink === '#fff' ? '#fff' : L.ink}" stroke="none">${esc(tag)}</text>
     ${text}
   </g>
@@ -733,7 +825,8 @@
       items.push(`<li class="leg" style="--c:${L.color}"><span class="rb${isText(L) ? ' txt' : ''}" style="background:${L.color};color:${L.ink}">${esc(lineShort(L))}</span><div class="rt"><b>${esc(segLabel(s))} ${esc(label(s.from))}에서 ${dir}</b><span class="sub">${s.stops}정거장, ${next ? esc(label(s.to)) + '에서 ' + esc(ro(segLabel(next))) + ' 환승' : esc(label(s.to)) + '에서 내려요'}${fork}</span></div></li>`);
     });
     items.push(`<li class="leg end"><span class="rb rb-end"></span><div class="rt"><b>${esc(stationQuery(dest))} 도착</b></div></li>`);
-    return `<ol class="route">${items.join('')}</ol>`;
+    const wide = r.segments.some((s) => isText(LINE[s.line]));
+    return `<ol class="route${wide ? ' wide' : ''}">${items.join('')}</ol>`;
   }
 
   function routeHTML(dest) {
@@ -806,8 +899,13 @@
       busyStamp = true;
       cam.disabled = true;
       try {
-        const r = await stampWithFile(name, line, f, (t) => { status.textContent = t; });
+        const r = await stampWithFile(name, line, f, (t) => { status.textContent = t; }, editSticker);
         busyStamp = false;
+        if (r.cancelled) {
+          status.textContent = '붙이지 않았어요. 다시 찍거나 고를 수 있어요';
+          cam.disabled = false;
+          return;
+        }
         if (!r.cut) {
           const s2 = $('.status', el);
           if (s2) s2.textContent = '배경은 못 지웠지만 사진 그대로 붙였어요';

@@ -103,9 +103,10 @@
     cur = { name: res.name, line: res.line };
     D.sign.dataset.state = 'settled';
     if (!reduced) {
-      D.sign.classList.remove('settle');
-      void D.sign.offsetWidth;
-      D.sign.classList.add('settle');
+      const wrap = D.sign.parentElement;
+      wrap.classList.remove('settle');
+      void wrap.offsetWidth;
+      wrap.classList.add('settle');
     }
     D.live.textContent = C.lineName(LINE[res.line]) + ' ' + C.stationQuery(res.name) + '이 나왔어요.';
     C.renderInfo(D.board, cur);
