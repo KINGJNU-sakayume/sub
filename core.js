@@ -861,6 +861,8 @@
       const a = ACCESS[name + '|' + p[1]];
       if (!a) return '';
       const [exit, min] = a;
+      /* 도보 0분 = 공원·궁처럼 넓은 곳: 걸리는 시간 대신 어느 출구 쪽인지만 */
+      if (!min) return exit ? `<span class="pacc"><b>${esc(exit)}번 출구</b> 쪽</span>` : '';
       return `<span class="pacc">${exit ? `<b>${esc(exit)}번 출구</b>` : '<b>역에서</b>'} 도보 약 ${esc(min)}분</span>`;
     };
     const placeRows = places.map((p) => `<li class="place">
