@@ -225,14 +225,15 @@
   }
 
   /* ---------- 남춘천 출발 경로 ---------- */
+  /* 걸리는 시간(분)으로 가장 빠른 길을 골라요. 모두 어림값이에요.
+     ITX-청춘은 대부분 청량리·용산에만 서서 두 역에서만 갈아타요. 용산은 청량리에서 더 가는 시간만큼 늦어요.
+     ITX에서 지하철로 갈아타는 것도 환승 한 번으로 셉니다. */
   const ENTRIES = [
-    { name: '상봉', pen: 0, train: 'ITX-청춘 · 경춘선' },
-    { name: '청량리', pen: 2, train: 'ITX-청춘' },
-    { name: '왕십리', pen: 4, train: 'ITX-청춘' },
-    { name: '옥수', pen: 5, train: 'ITX-청춘' },
-    { name: '용산', pen: 6, train: 'ITX-청춘' },
+    { name: '청량리', pen: 0, train: 'ITX-청춘' },
+    { name: '용산', pen: 18, train: 'ITX-청춘' },
   ];
-  const TRANSFER = 5;
+  const STOP_MIN = 2;             // 한 정거장
+  const TRANSFER = 7;             // 갈아타기(걷기 + 기다리기)
   /* 따로 다니는 지선(sep)은 '2.1'처럼 별도 그룹으로 둬서 만나는 역에서 환승으로 계산해요 */
   const NODES = new Map();
   const GROUPS = new Map();       // 역 이름 -> 그 역이 속한 그룹들
@@ -250,8 +251,8 @@
   };
   const link = (g, a, b, oneway) => {
     const A = nodeOf(g, a), B = nodeOf(g, b);
-    if (!A.edges.some((e) => e.to === B)) A.edges.push({ to: B, cost: 1 });
-    if (!oneway && !B.edges.some((e) => e.to === A)) B.edges.push({ to: A, cost: 1 });
+    if (!A.edges.some((e) => e.to === B)) A.edges.push({ to: B, cost: STOP_MIN });
+    if (!oneway && !B.edges.some((e) => e.to === A)) B.edges.push({ to: A, cost: STOP_MIN });
   };
   LINES.forEach((L) => L.tracks.forEach((t, ti) => {
     const s = t.s, g = groupOf(L, ti);
@@ -345,8 +346,8 @@
         entry: en,
         segments,
         stops: segments.reduce((a, s) => a + s.stops, 0),
-        transfers: Math.max(0, segments.length - 1),
-        cost: r.cost + en.pen,
+        transfers: segments.length,
+        cost: r.cost + en.pen + TRANSFER,
       });
     });
     out.sort((a, b) => a.cost - b.cost);

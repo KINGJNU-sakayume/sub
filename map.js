@@ -192,7 +192,7 @@
     if (!L_) return;
     map = L_.map('map', { zoomControl: true, preferCanvas: false, attributionControl: true })
       .setView([37.5665, 126.978], 11);
-    L_.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png?key=' + CARTO_KEY, {
+    L_.tileLayer('https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png?key=' + CARTO_KEY, {
       subdomains: 'abcd', maxZoom: 19,
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
     }).addTo(map);
