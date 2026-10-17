@@ -194,7 +194,7 @@ button { font: inherit; color: inherit; }
 .places { margin: 0; padding: 0; list-style: none; }
 .place {
   display: grid;
-  grid-template-columns: 3.4rem minmax(0, 1fr) auto;
+  grid-template-columns: 3.4rem minmax(0, 1fr);
   align-items: baseline;
   gap: 4px 16px;
   padding: 13px 0;
@@ -205,20 +205,8 @@ button { font: inherit; color: inherit; }
 .kind.food { background: var(--yellow); }
 .pname { font-size: 1.05rem; font-weight: 800; }
 .pdesc { margin-left: 10px; font-size: .92rem; color: var(--board-muted); }
-.plinks { display: flex; gap: 14px; white-space: nowrap; }
-.plinks a { font-size: .92rem; color: var(--board-ink); text-underline-offset: 3px; }
-.chips { display: flex; flex-wrap: wrap; gap: 8px; }
-.chips a {
-  display: inline-block;
-  padding: 8px 14px;
-  font-size: .95rem;
-  font-weight: 600;
-  color: var(--board-ink);
-  text-decoration: none;
-  border: 1.5px solid #566068;
-  border-radius: 999px;
-}
-.chips a:hover { border-color: var(--board-ink); }
+.pacc { display: block; margin-top: 3px; font-size: .88rem; color: var(--board-muted); }
+.pacc b { font-weight: 800; color: var(--board-ink); }
 
 /* 기록 서랍 */
 .scrim { position: fixed; inset: 0; z-index: 2000; background: rgba(15, 20, 24, .45); opacity: 0; transition: opacity .25s; }
@@ -295,8 +283,6 @@ button { font: inherit; color: inherit; }
   .info-grid { grid-template-columns: 1fr; }
   .sect { padding: 20px 20px 10px; }
   .sect + .sect { border-left: 0; border-top: 1px solid var(--board-rule); }
-  .place { grid-template-columns: 3.4rem minmax(0, 1fr); }
-  .plinks { grid-column: 2; }
   .pdesc { display: block; margin: 2px 0 0; }
 }
 

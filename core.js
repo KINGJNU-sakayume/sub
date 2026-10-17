@@ -12,6 +12,7 @@
   const enc = encodeURIComponent;
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const REGION = window.METRO.REGION || {};
+  const ACCESS = window.METRO.ACCESS || {};   // '역|장소' → [출구, 도보 분] (access.js)
   const LINE = Object.fromEntries(LINES.map((l) => [l.n, l]));
   const ORIGIN = '남춘천';
 
@@ -762,15 +763,17 @@
     const stamp = state.stamps[name];
     const sq = stationQuery(name);
     const places = CURATED[name] || [];
-    const placeRows = places.map((p) => {
-      const ml = mapLinks(p[3] || p[1]);
-      return `<li class="place">
+    /* 장소마다 가까운 출구와 도보 시간(어림)만 보여 줘요. 아직 조사 안 된 장소는 이름과 설명만 */
+    const accessHTML = (p) => {
+      const a = ACCESS[name + '|' + p[1]];
+      if (!a) return '';
+      const [exit, min] = a;
+      return `<span class="pacc">${exit ? `<b>${esc(exit)}번 출구</b>` : '<b>역에서</b>'} 도보 약 ${esc(min)}분</span>`;
+    };
+    const placeRows = places.map((p) => `<li class="place">
         <span class="kind ${p[0] === '맛집' ? 'food' : ''}">${esc(p[0])}</span>
-        <span><span class="pname">${esc(p[1])}</span><span class="pdesc">${esc(p[2])}</span></span>
-        <span class="plinks"><a href="${ml.kakao}" target="_blank" rel="noopener">카카오맵</a><a href="${ml.naver}" target="_blank" rel="noopener">네이버지도</a></span>
-      </li>`;
-    }).join('');
-    const chips = ['맛집', '카페', '가볼 만한 곳'].map((kw) => `<a href="${mapLinks(sq + ' ' + kw).kakao}" target="_blank" rel="noopener">${esc(sq)} ${esc(kw)}</a>`).join('');
+        <span><span class="pname">${esc(p[1])}</span><span class="pdesc">${esc(p[2])}</span>${accessHTML(p)}</span>
+      </li>`).join('');
 
     el.innerHTML = `
 <div class="stampbar" style="--line:${L.color};--ink-on:${L.ink}">
@@ -789,8 +792,7 @@
   </section>
   <section class="sect">
     <h3>이 역 근처</h3>
-    ${places.length ? `<ul class="places">${placeRows}</ul>` : '<p class="empty">아직 골라 둔 장소가 없어요. 지도에서 바로 찾아보세요.</p>'}
-    <div class="chips" style="margin-top:${places.length ? 14 : 0}px">${chips}</div>
+    ${places.length ? `<ul class="places">${placeRows}</ul>` : '<p class="empty">아직 골라 둔 장소가 없어요.</p>'}
     <p class="hint"><a href="${mapLinks(sq).kakao}" target="_blank" rel="noopener">카카오맵</a>이나 <a href="${mapLinks(sq).naver}" target="_blank" rel="noopener">네이버지도</a>에서 열면 길찾기를 바로 쓸 수 있어요.</p>
   </section>
 </div>`;

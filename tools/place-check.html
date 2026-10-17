@@ -1,0 +1,242 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>근처 장소 출구 검사</title>
+  <meta name="robots" content="noindex">
+  <style>
+    :root { --ink: #1c2125; --muted: #566067; --line: #d5dad8; --warn: #fff3cd; --bad: #fde2e1; }
+    * { box-sizing: border-box; }
+    body { margin: 0; padding: 24px 16px 60px; font: 15px/1.55 system-ui, -apple-system, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; color: var(--ink); background: #f6f7f6; }
+    main { max-width: 1080px; margin: 0 auto; }
+    h1 { margin: 0 0 6px; font-size: 1.4rem; }
+    p { margin: 0 0 12px; color: var(--muted); }
+    .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 16px 0; }
+    input[type=text] { flex: 1 1 260px; padding: 10px 12px; font: inherit; border: 1.5px solid #8a9398; border-radius: 6px; }
+    button { padding: 10px 16px; font: inherit; font-weight: 700; color: #fff; background: #23292d; border: 0; border-radius: 6px; cursor: pointer; }
+    button:disabled { opacity: .45; cursor: default; }
+    button.sec { color: var(--ink); background: #fff; border: 1.5px solid #8a9398; }
+    :focus-visible { outline: 3px solid #1a73e8; outline-offset: 2px; }
+    #msg { min-height: 1.5em; font-weight: 600; color: var(--ink); }
+    #msg.err { color: #b3261e; }
+    progress { width: 100%; height: 10px; }
+    .sum { margin: 12px 0; font-weight: 600; }
+    .table-wrap { overflow-x: auto; background: #fff; border: 1px solid var(--line); border-radius: 6px; }
+    table { width: 100%; border-collapse: collapse; font-size: .9rem; }
+    th, td { padding: 6px 10px; text-align: left; border-bottom: 1px solid var(--line); white-space: nowrap; vertical-align: top; }
+    td.names { white-space: normal; min-width: 200px; color: var(--muted); }
+    td.num { text-align: right; font-variant-numeric: tabular-nums; }
+    tr.far td { background: var(--warn); }
+    tr.miss td { background: var(--bad); }
+  </style>
+</head>
+<body>
+<main>
+  <h1>근처 장소 출구 검사</h1>
+  <p>data.js의 "이 역 근처" 장소마다 카카오 장소 검색으로 위치를 찾고, 가장 가까운 역 출구와 도보 시간(어림)을 계산해 access.js를 만드는 도구예요. 키는 이 화면에서만 쓰고 어디에도 저장하지 않아요.</p>
+  <p>역 좌표 검사(geo-check)와 같은 <b>카카오 JavaScript 키</b>를 넣으세요. 도보 시간은 출구에서 장소까지 직선거리 × 1.3 ÷ 분당 70m 어림이라 실제와 몇 분 다를 수 있어요.</p>
+
+  <div class="row">
+    <input type="text" id="key" placeholder="카카오 JavaScript 키" autocomplete="off" spellcheck="false" aria-label="카카오 JavaScript 키">
+    <button type="button" id="start">검사 시작</button>
+  </div>
+  <progress id="prog" max="1" value="0" hidden></progress>
+  <p id="msg" role="status"></p>
+
+  <div id="out" hidden>
+    <p class="sum" id="sum"></p>
+    <div class="row">
+      <button type="button" class="sec" id="dlJson">결과 JSON 내려받기 (access-kakao.json)</button>
+      <button type="button" class="sec" id="dlAccess">새 access.js 내려받기</button>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>역</th><th>장소</th><th class="num">역에서(m)</th><th>출구</th><th class="num">도보(분)</th><th>찾은 장소</th></tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </div>
+  </div>
+</main>
+
+<script src="../data.js"></script>
+<script src="../geo.js"></script>
+<script src="../access.js"></script>
+<script>
+(() => {
+  'use strict';
+  const { CURATED, GEO } = window.METRO;
+  const OLD = window.METRO.ACCESS || {};
+  const $ = (s) => document.querySelector(s);
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const base = (name) => name.replace(/\(.+\)$/, '').replace(/역$/, '');
+  const query = (name) => base(name) + '역';
+  const FAR = 1500;          // 역 중심에서 이보다 멀면 노란 줄(확인 필요), access.js에는 넣지 않아요
+  const WALK = (m) => Math.max(1, Math.round((m * 1.3) / 70));
+
+  function meters(a, b) {
+    const r = Math.PI / 180, dl = (b[0] - a[0]) * r, dg = (b[1] - a[1]) * r;
+    const x = Math.sin(dl / 2) ** 2 + Math.cos(a[0] * r) * Math.cos(b[0] * r) * Math.sin(dg / 2) ** 2;
+    return Math.round(12742000 * Math.asin(Math.sqrt(x)));
+  }
+  const say = (t, err) => { $('#msg').textContent = t; $('#msg').classList.toggle('err', !!err); };
+
+  function loadSDK(key) {
+    return new Promise((res, rej) => {
+      if (window.kakao && window.kakao.maps && window.kakao.maps.services) { res(); return; }
+      const s = document.createElement('script');
+      s.src = 'https://dapi.kakao.com/v2/maps/sdk.js?appkey=' + encodeURIComponent(key) + '&libraries=services&autoload=false';
+      const t = setTimeout(() => rej(new Error('timeout')), 10000);
+      s.onerror = () => { clearTimeout(t); rej(new Error('script')); };
+      s.onload = () => {
+        if (!window.kakao || !window.kakao.maps || !window.kakao.maps.load) { clearTimeout(t); rej(new Error('sdk')); return; }
+        window.kakao.maps.load(() => { clearTimeout(t); res(); });
+      };
+      document.head.append(s);
+    });
+  }
+
+  function search(places, q, opts) {
+    return new Promise((res) => places.keywordSearch(q, (data, status) => res({ data: data || [], status }), opts));
+  }
+
+  /* 역 출구: "서울역 1번출구"처럼 이름에 역 이름과 'N번 출구'가 들어간 장소를 모아요. 같은 번호는 평균 좌표 */
+  const exitCache = new Map();
+  async function exitsOf(places, name) {
+    if (exitCache.has(name)) return exitCache.get(name);
+    const S = window.kakao.maps.services;
+    const loc = new window.kakao.maps.LatLng(GEO[name][0], GEO[name][1]);
+    const found = new Map();
+    for (let page = 1; page <= 3; page++) {
+      const r = await search(places, query(name) + ' 출구', { location: loc, radius: 800, sort: S.SortBy.DISTANCE, page });
+      r.data.forEach((p) => {
+        if (!p.place_name.replace(/\s/g, '').includes(base(name))) return;
+        const m = p.place_name.match(/(\d+(?:-\d+)?)\s*번\s*출구/);
+        if (!m) return;
+        const a = found.get(m[1]) || [];
+        a.push([Number(p.y), Number(p.x)]);
+        found.set(m[1], a);
+      });
+      if (r.data.length < 15) break;
+      await sleep(100);
+    }
+    const exits = [...found.entries()].map(([no, pts]) => ({
+      no, at: [pts.reduce((s, q) => s + q[0], 0) / pts.length, pts.reduce((s, q) => s + q[1], 0) / pts.length],
+    }));
+    exitCache.set(name, exits);
+    return exits;
+  }
+
+  async function checkOne(places, station, p) {
+    const S = window.kakao.maps.services;
+    const st = GEO[station];
+    if (!st) return { station, place: p[1], error: '역 좌표 없음' };
+    const loc = new window.kakao.maps.LatLng(st[0], st[1]);
+    let r = await search(places, p[3] || p[1], { location: loc, radius: 3000, sort: S.SortBy.ACCURACY });
+    if (r.status === S.Status.ERROR) return { station, place: p[1], error: '검색 오류' };
+    if (!r.data.length) r = await search(places, base(station) + ' ' + p[1], { location: loc, radius: 3000, sort: S.SortBy.ACCURACY });
+    if (!r.data.length) return { station, place: p[1], miss: true };
+    const hit = r.data[0];
+    const at = [Number(hit.y), Number(hit.x)];
+    const fromStation = meters(st, at);
+    const exits = await exitsOf(places, station);
+    let best = null;
+    exits.forEach((e) => { const m = meters(e.at, at); if (!best || m < best.m) best = { no: e.no, m }; });
+    const m = best ? best.m : fromStation;
+    return { station, place: p[1], found: hit.place_name, at, fromStation, exit: best ? best.no : '', walk: WALK(m), exitsKnown: exits.length };
+  }
+
+  let results = [];
+  const usable = (r) => !r.miss && !r.error && r.fromStation <= FAR;
+
+  function render() {
+    const ok = results.filter(usable);
+    const far = results.filter((r) => !r.miss && !r.error && r.fromStation > FAR);
+    const miss = results.filter((r) => r.miss || r.error);
+    const noExit = ok.filter((r) => !r.exit).length;
+    $('#sum').textContent = `${results.length}곳 중 ${ok.length}곳 반영 · ${FAR}m 넘게 멂 ${far.length} · 못 찾음 ${miss.length} · 출구를 못 찾아 역 기준 ${noExit}`;
+    const sorted = [...miss, ...far, ...ok];
+    $('#rows').innerHTML = sorted.map((r) => {
+      const cls = r.miss || r.error ? 'miss' : r.fromStation > FAR ? 'far' : '';
+      const found = r.error ? r.error : r.miss ? '못 찾음' : r.found;
+      return `<tr class="${cls}"><td>${esc(r.station)}</td><td>${esc(r.place)}</td><td class="num">${r.fromStation != null ? r.fromStation : '-'}</td>` +
+        `<td>${r.exit ? esc(r.exit) + '번' : '-'}</td><td class="num">${r.walk || '-'}</td><td class="names">${esc(found)}</td></tr>`;
+    }).join('');
+    $('#out').hidden = false;
+  }
+
+  function download(name, text, type) {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([text], { type }));
+    a.download = name;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1500);
+  }
+
+  /* 이번에 찾은 값으로 덮고, 이번에 못 찾은 장소는 예전 값을 그대로 둬요 */
+  function accessSource() {
+    const out = Object.assign({}, OLD);
+    results.filter(usable).forEach((r) => { out[r.station + '|' + r.place] = [r.exit, r.walk]; });
+    const q = (s) => "'" + String(s).replace(/\\/g, '\\\\').replace(/'/g, "\\'") + "'";
+    const body = Object.keys(out).sort().map((k) => `    ${q(k)}: [${q(out[k][0])}, ${Number(out[k][1])}],`).join('\n');
+    return `/* 이 역 근처 장소: 가까운 출구와 걸어서 걸리는 시간(어림). tools/place-check.html로 만들어요 (${new Date().toLocaleDateString('sv-SE')}).
+   키는 '역|장소 이름', 값은 [출구 번호(못 찾으면 ''), 도보 분].
+   도보 분은 출구에서 장소까지 직선거리 × 1.3 ÷ 분당 70m 로 어림했어요.
+   여기 없는 장소는 화면에 이름과 설명만 나와요. */
+(function () {
+  const ACCESS = {
+${body}
+  };
+  window.METRO.ACCESS = ACCESS;
+})();
+`;
+  }
+
+  $('#start').addEventListener('click', async () => {
+    const key = $('#key').value.trim();
+    if (!key) { say('JavaScript 키를 넣어 주세요.', true); $('#key').focus(); return; }
+    $('#start').disabled = true;
+    say('카카오 지도 SDK 불러오는 중…');
+    try {
+      await loadSDK(key);
+    } catch (e) {
+      say('카카오 SDK를 불러오지 못했어요. JavaScript 키가 맞는지, 이 사이트 도메인(' + location.origin + ')이 앱의 Web 플랫폼에 등록돼 있는지 확인해 주세요.', true);
+      $('#start').disabled = false;
+      return;
+    }
+    const places = new window.kakao.maps.services.Places();
+    const list = [];
+    Object.entries(CURATED).forEach(([station, ps]) => ps.forEach((p) => list.push([station, p])));
+    const prog = $('#prog');
+    prog.hidden = false;
+    prog.max = list.length;
+    results = [];
+    let errors = 0;
+    for (let i = 0; i < list.length; i++) {
+      const [station, p] = list[i];
+      say(`검사 중 ${i + 1} / ${list.length} · ${station} · ${p[1]}`);
+      const r = await checkOne(places, station, p);
+      if (r.error) errors++;
+      results.push(r);
+      prog.value = i + 1;
+      if (errors >= 5 && errors === results.length) {
+        say('검색이 계속 실패해요. 키의 사용량 제한이나 카카오맵 사용 설정을 확인해 주세요.', true);
+        break;
+      }
+      await sleep(120);
+    }
+    render();
+    say('끝났어요. 결과 JSON을 내려받아 대화에 올려 주세요.');
+    $('#start').disabled = false;
+  });
+
+  $('#dlJson').addEventListener('click', () => {
+    const data = { checkedAt: new Date().toISOString(), source: 'kakao places keyword', results };
+    download('access-kakao.json', JSON.stringify(data, null, 1), 'application/json');
+  });
+  $('#dlAccess').addEventListener('click', () => download('access.js', accessSource(), 'text/javascript'));
+})();
+</script>
+</body>
+</html>
