@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const C = window.Core;
-  const { $, esc, ORIGIN, STATIONS, LINE, isText, lineShort, lineName, label, state, origin, setOrigin } = C;
+  const { $, esc, ORIGIN, STATIONS, LINE, isText, lineShort, lineName, label, state, origin, setOrigin, modal } = C;
 
   const meters = (a, b) => {
     const r = Math.PI / 180, dl = (b[0] - a[0]) * r, dg = (b[1] - a[1]) * r;
@@ -67,14 +67,13 @@ ${geoOK ? '<button type="button" class="or-geo" id="orGeo">지금 위치에서 �
       (state.recentOrigins || []).forEach((n) => { if (!seen.has(n) && STATIONS.has(n)) { rows.push(option(n, '최근')); seen.add(n); } });
       list.innerHTML = rows.join('');
     }
+    if (opener) opener.focus();     // 닫으면 이 버튼으로 돌아와요
     const done = () => {
-      document.removeEventListener('keydown', onKey);
+      release();
       scrim.remove();
       box.remove();
-      if (opener && opener.isConnected) opener.focus();
     };
-    const onKey = (e) => { if (e.key === 'Escape') done(); };
-    document.addEventListener('keydown', onKey);
+    const release = modal(box, done);
     scrim.addEventListener('click', done);
     $('[data-act="close"]', box).addEventListener('click', done);
     q.addEventListener('input', paint);
@@ -83,6 +82,8 @@ ${geoOK ? '<button type="button" class="or-geo" id="orGeo">지금 위치에서 �
       if (!b) return;
       setOrigin(b.dataset.n);
       done();
+      /* 안내판이 새로 그려져서 원래 버튼이 없어졌으면 새 출발역 버튼으로 */
+      if (opener && !opener.isConnected) { const nb = $('.origin-btn'); if (nb) nb.focus(); }
     });
     if (geoOK) {
       $('#orGeo', box).addEventListener('click', () => {

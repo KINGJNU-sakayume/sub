@@ -156,8 +156,9 @@ button { font: inherit; color: inherit; }
 .cam:hover:not(:disabled) { filter: brightness(1.1); }
 .cam:disabled { opacity: .6; cursor: progress; }
 .status { font-size: .92rem; color: var(--board-muted); }
-.stampopts { margin-left: auto; display: flex; flex-wrap: wrap; gap: 2px 18px; }
-.stampopts .link-btn { white-space: nowrap; }
+.stampopts { margin-left: auto; display: flex; flex-wrap: wrap; gap: 0 18px; }
+/* 보이는 글자는 작아도 누르는 칸은 넉넉하게 */
+.stampopts .link-btn { padding: 10px 0; white-space: nowrap; }
 .info-grid { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); }
 .sect { padding: 22px 28px 14px; }
 .sect + .sect { border-left: 1px solid var(--board-rule); }
@@ -213,6 +214,19 @@ button { font: inherit; color: inherit; }
 .pacc { display: block; margin-top: 3px; font-size: .88rem; color: var(--board-muted); }
 .pacc b { font-weight: 800; color: var(--board-ink); }
 
+/* 창이 열려 있는 동안 뒤 페이지는 스크롤되지 않아요 */
+html.locked, html.locked body { overflow: hidden; }
+
+/* 저장 실패 알림 */
+.save-warn {
+  position: fixed; z-index: 3500; left: 50%; top: calc(env(safe-area-inset-top, 0px) + 10px); transform: translateX(-50%);
+  display: flex; align-items: center; gap: 12px; width: min(560px, calc(100% - 24px)); box-sizing: border-box;
+  padding: 12px 14px 12px 18px; color: #fff; background: #b3261e; border-radius: 12px; box-shadow: 0 8px 24px rgba(0, 0, 0, .3);
+}
+.save-warn[hidden] { display: none; }
+.save-warn p { margin: 0; font-size: .92rem; font-weight: 700; line-height: 1.45; }
+.save-warn .x { flex: none; color: #fff; border-color: rgba(255, 255, 255, .75); }
+
 /* 기록 서랍 */
 .scrim { position: fixed; inset: 0; z-index: 2000; background: rgba(15, 20, 24, .45); opacity: 0; transition: opacity .25s; }
 .scrim.on { opacity: 1; }
@@ -232,10 +246,21 @@ button { font: inherit; color: inherit; }
   transition: transform .26s cubic-bezier(.2, .8, .2, 1);
 }
 .drawer.on { transform: none; }
-.drawer-head { display: flex; align-items: center; justify-content: space-between; padding: 18px 22px; border-bottom: 1px solid #e3e7e6; }
+.drawer-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: calc(18px + env(safe-area-inset-top, 0px)) max(22px, env(safe-area-inset-right, 0px)) 14px 22px;
+}
+/* 바로가기: 긴 도장첩을 지나지 않고 설정·백업으로 */
+.drawer-nav { display: flex; gap: 6px; padding: 0 22px 12px; overflow-x: auto; border-bottom: 1px solid #e3e7e6; }
+.drawer-nav button {
+  flex: none; padding: 8px 14px; font-size: .88rem; font-weight: 700; color: var(--ink);
+  background: rgba(35, 41, 45, .07); border: 0; border-radius: 999px; cursor: pointer;
+}
+.drawer-nav button:hover { background: rgba(35, 41, 45, .14); }
+.drawer [tabindex="-1"]:focus { outline: none; }
 .drawer-head h2 { margin: 0; font-size: 1.2rem; font-weight: 900; }
 .x { padding: 6px 12px; font-size: .92rem; font-weight: 700; background: none; border: 1.5px solid #868f94; border-radius: 999px; cursor: pointer; }
-.drawer-body { flex: 1; overflow: auto; padding: 14px 0 36px; }
+.drawer-body { flex: 1; overflow: auto; padding: 14px 0 calc(36px + env(safe-area-inset-bottom, 0px)); }
 .sum { margin: 0 22px 12px; font-size: .95rem; font-weight: 700; color: var(--muted); font-variant-numeric: tabular-nums; }
 .rbadge { --s: 34px; }
 .settings { margin: 22px 22px 0; padding-top: 18px; border-top: 1px solid #e3e7e6; }
@@ -343,6 +368,9 @@ button { font: inherit; color: inherit; }
 .ed-slider input { width: 100%; accent-color: #23292d; }
 .ed-slider output { text-align: right; font-variant-numeric: tabular-nums; color: var(--muted); }
 .ed-hint { margin: 0; font-size: .88rem; color: var(--muted); }
+.ed-job { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0; font-size: .9rem; font-weight: 700; }
+.ed-job[hidden] { display: none; }
+.ed-job .link-btn { flex: none; padding: 8px 0; color: var(--muted); }
 .ed-actions { display: flex; justify-content: flex-end; gap: 10px; }
 .ed-ok { padding: 10px 22px; font-weight: 800; color: #fff; background: #23292d; border: 0; border-radius: 999px; cursor: pointer; }
 .ed-ok:disabled { opacity: .45; cursor: default; }
