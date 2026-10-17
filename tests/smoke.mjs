@@ -107,6 +107,8 @@ console.log('사진 도장 (배경 제거 없이)');
   await p.click('[data-act="ok"]');
   await p.waitForSelector('.sticker img', { timeout: 10000 });
   ok(await p.evaluate(() => !!window.Core.state.stamps['서울역'] && window.Core.state.stamps['서울역'].p === 1), '스티커 도장이 저장됨');
+  const [card] = await Promise.all([p.waitForEvent('download'), p.click('[data-act="card"]')]);
+  ok(/^metro-stamp-\d{8}\.png$/.test(card.suggestedFilename()), '도장 카드 이미지가 만들어짐');
   ok(!p.errors.length, '자바스크립트 오류 없음' + (p.errors.length ? ': ' + p.errors[0] : ''));
   await p.context().close();
 }

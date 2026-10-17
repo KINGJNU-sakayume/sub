@@ -11,7 +11,7 @@ const FILES = [
   'common.css', 'sign.css', 'map.css',
   'data.js', 'geo.js', 'access.js', 'sign.js', 'map.js',
   'core/base.js', 'core/sound.js', 'core/draw.js', 'core/route.js', 'core/sticker.js',
-  'core/backup.js', 'core/seal.js', 'core/origin.js', 'core/board.js', 'core/drawer.js',
+  'core/backup.js', 'core/seal.js', 'core/origin.js', 'core/card.js', 'core/board.js', 'core/drawer.js',
   'icons/icon-180.png', 'icons/icon-192.png', 'icons/icon-512.png',
 ];
 

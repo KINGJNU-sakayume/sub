@@ -3,7 +3,7 @@
   'use strict';
   const C = window.Core;
   const {
-    CURATED, $, esc, ACCESS, LINE, ORIGIN, origin, openOriginPicker, isText, lineShort, label, ro, stationQuery, mapLinks,
+    CURATED, $, esc, ACCESS, LINE, ORIGIN, origin, openOriginPicker, shareCard, isText, lineShort, label, ro, stationQuery, mapLinks,
     dotDate, on, state, segLabel, routesTo, stampWithFile, editSticker, stampPlain, unstamp,
   } = C;
 
@@ -75,6 +75,7 @@
   <span class="status" role="status">${stamp ? esc(dotDate(stamp.d)) + '에 다녀왔어요' : '출구나 역명판을 찍으면 스티커가 돼요'}</span>
   <span class="stampopts">
     ${!stamp ? '<button type="button" class="link-btn" data-act="plain">사진 없이 도장만</button>' : ''}
+    ${stamp ? '<button type="button" class="link-btn" data-act="card">도장 카드 공유</button>' : ''}
     ${stamp ? '<button type="button" class="link-btn" data-act="clear">도장 지우기</button>' : ''}
   </span>
 </div>
@@ -121,6 +122,18 @@
     });
     el.querySelectorAll('[data-act]').forEach((b) => b.addEventListener('click', async () => {
       if (b.dataset.act === 'plain') { stampPlain(name, line); return; }
+      if (b.dataset.act === 'card') {
+        b.disabled = true;
+        status.textContent = '도장 카드 만드는 중…';
+        try {
+          const r = await shareCard(name, line);
+          status.textContent = r === 'saved' ? '도장 카드를 저장했어요' : r === 'shared' ? '도장 카드를 보냈어요' : '';
+        } catch (e) {
+          status.textContent = '도장 카드를 만들지 못했어요';
+        }
+        b.disabled = false;
+        return;
+      }
       if (b.dataset.act === 'clear') {
         if (b.dataset.armed !== '1') {
           b.dataset.armed = '1';
