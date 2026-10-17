@@ -258,8 +258,9 @@ button { font: inherit; color: inherit; }
   cursor: pointer;
 }
 .rbadge { --s: 34px; }
-.rbar { display: flex; gap: 2px; height: 10px; }
-.rbar i { flex: 1; min-width: 1px; background: #e3e7e6; border-radius: 1px; }
+/* 역이 100개 넘는 노선(1호선)도 칸 안에 들어가게 칸 사이를 1px로, 넘치면 잘라요 */
+.rbar { display: flex; gap: 1px; height: 10px; min-width: 0; overflow: hidden; }
+.rbar i { flex: 1; min-width: 0; background: #e3e7e6; border-radius: 1px; }
 .rbar i.on { background: var(--c); }
 .rcnt { font-size: .92rem; font-weight: 600; color: var(--muted); font-variant-numeric: tabular-nums; }
 .rchips { display: flex; flex-wrap: wrap; gap: 8px; padding: 2px 22px 18px; }
