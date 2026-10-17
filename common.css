@@ -239,7 +239,7 @@ button { font: inherit; color: inherit; }
 .drawer.on { transform: none; }
 .drawer-head { display: flex; align-items: center; justify-content: space-between; padding: 18px 22px; border-bottom: 1px solid #e3e7e6; }
 .drawer-head h2 { margin: 0; font-size: 1.2rem; font-weight: 900; }
-.x { padding: 6px 12px; font-size: .92rem; font-weight: 700; background: none; border: 1.5px solid #9aa3a7; border-radius: 999px; cursor: pointer; }
+.x { padding: 6px 12px; font-size: .92rem; font-weight: 700; background: none; border: 1.5px solid #868f94; border-radius: 999px; cursor: pointer; }
 .drawer-body { flex: 1; overflow: auto; padding: 14px 0 36px; }
 .sum { margin: 0 22px 12px; font-size: .95rem; font-weight: 700; color: var(--muted); font-variant-numeric: tabular-nums; }
 .gallery {
