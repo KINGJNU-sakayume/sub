@@ -21,7 +21,6 @@
   let activeLine = 0;
   let cur = null;
   let busy = false;
-  const refined = {};             // 이름 -> [lat,lng]
 
   const pts = (t) => {
     const a = t.s.filter((n) => GEO[n]).map((n) => GEO[n]);
@@ -81,7 +80,7 @@
     });
   }
   function place(name, n, hop) {
-    const ll = (!hop && refined[name]) || GEO[name];
+    const ll = GEO[name];
     if (!ll || !map) return;
     if (!bigMarker) bigMarker = L_.marker(ll, { keyboard: false, zIndexOffset: 1000 }).addTo(map);
     bigMarker.setLatLng(ll);
@@ -94,32 +93,11 @@
     if (all.length) map.fitBounds(L_.latLngBounds(all), { padding: [50, 50], animate: !!animate && !reduced });
   }
   function focus(name) {
-    const ll = refined[name] || GEO[name];
+    const ll = GEO[name];
     if (!ll) return;
     const z = 15;
     if (reduced) map.setView(ll, z);
     else map.flyTo(ll, z, { duration: 1.1 });
-  }
-
-  /* 정확한 위치 보정: 실패해도 근사 좌표로 계속 */
-  async function refine(name) {
-    if (refined[name] || !GEO[name]) return;
-    const [la, lo] = GEO[name];
-    const d = 0.012;
-    const url = 'https://nominatim.openstreetmap.org/search?format=json&limit=1&accept-language=ko' +
-      '&viewbox=' + [lo - d, la + d, lo + d, la - d].join(',') + '&bounded=1&q=' + encodeURIComponent(C.stationQuery(name));
-    try {
-      const ctl = new AbortController();
-      const t = setTimeout(() => ctl.abort(), 5000);
-      const r = await fetch(url, { signal: ctl.signal });
-      clearTimeout(t);
-      if (!r.ok) return;
-      const j = await r.json();
-      if (j && j[0]) {
-        refined[name] = [parseFloat(j[0].lat), parseFloat(j[0].lon)];
-        if (cur && cur.name === name && !busy) { place(name, cur.line); focus(name); }
-      }
-    } catch (e) { /* 근사 좌표 사용 */ }
   }
 
   function showPanel(name, n) {
@@ -159,7 +137,6 @@
     focus(name);
     showPanel(name, n);
     D.live.textContent = n + '호선 ' + C.stationQuery(name) + '이 나왔어요.';
-    refine(name);
   }
 
   function pick(name, n) {

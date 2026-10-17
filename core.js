@@ -4,6 +4,7 @@
   'use strict';
 
   const { LINES, EN, CURATED } = window.METRO;
+  const RENAMED = window.METRO.RENAMED || {};
   const $ = (s, r = document) => r.querySelector(s);
   const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -64,6 +65,18 @@
   } catch (e) { /* 저장소를 못 쓰는 환경 */ }
   const save = () => { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) { /* 무시 */ } };
 
+  /* 이름이 바뀐 역의 도장을 새 이름으로 옮겨요. 사진은 아래 사진 저장소에서 옮겨요 */
+  const renamedPhotos = [];       // [옛 이름, 새 이름, 사진을 새 이름으로 옮길지]
+  Object.entries(RENAMED).forEach(([from, to]) => {
+    const st = state.stamps[from];
+    if (!st) return;
+    const keep = !state.stamps[to];
+    if (keep) state.stamps[to] = st;
+    if (st.p) renamedPhotos.push([from, to, keep]);
+    delete state.stamps[from];
+    save();
+  });
+
   /* ---------- 사진 저장소 (IndexedDB) ---------- */
   const DB = (() => {
     let dbp = null;
@@ -91,9 +104,18 @@
     };
   })();
 
+  const photosReady = Promise.all(renamedPhotos.map(async ([from, to, keep]) => {
+    try {
+      const blob = await DB.get(from);
+      if (blob && keep) await DB.put(to, blob);
+      await DB.del(from);
+    } catch (e) { /* 사진을 못 옮겨도 도장은 남아요 */ }
+  }));
+
   const urls = new Map();
   async function photoURL(name) {
     if (urls.has(name)) return urls.get(name);
+    await photosReady;
     const st = state.stamps[name];
     if (!st || !st.p) return null;
     try {
@@ -518,6 +540,7 @@
   });
 
   async function exportJSON() {
+    await photosReady;
     const photos = {};
     for (const name of Object.keys(state.stamps)) {
       if (!state.stamps[name].p) continue;
@@ -534,10 +557,11 @@
     const data = JSON.parse(await file.text());
     if (!data || typeof data.stamps !== 'object') throw new Error('형식');
     let added = 0;
-    for (const [n, v] of Object.entries(data.stamps)) {
+    for (const [old, v] of Object.entries(data.stamps)) {
+      const n = RENAMED[old] || old;
       if (!STATIONS.has(n) || !v || typeof v.d !== 'string' || state.stamps[n]) continue;
       state.stamps[n] = { d: v.d, l: v.l };
-      const url = data.photos && data.photos[n];
+      const url = data.photos && data.photos[old];
       if (url) {
         try {
           const blob = await (await fetch(url)).blob();

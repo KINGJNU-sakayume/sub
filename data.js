@@ -33,7 +33,7 @@
     {
       n: 4, color: '#00A5DE', ink: '#fff',
       tracks: [
-        T('당고개 상계 노원 창동 쌍문 수유 미아 미아사거리 길음 성신여대입구 한성대입구 혜화 동대문 동대문역사문화공원 충무로 명동 회현 서울역 숙대입구 삼각지 신용산 이촌 동작 총신대입구 사당 남태령'),
+        T('불암산 상계 노원 창동 쌍문 수유 미아 미아사거리 길음 성신여대입구 한성대입구 혜화 동대문 동대문역사문화공원 충무로 명동 회현 서울역 숙대입구 삼각지 신용산 이촌 동작 총신대입구 사당 남태령'),
       ],
     },
     {
@@ -53,7 +53,7 @@
     {
       n: 7, color: '#747F00', ink: '#fff',
       tracks: [
-        T('도봉산 수락산 마들 노원 중계 하계 공릉 태릉입구 먹골 중화 상봉 면목 사가정 용마산 중곡 군자 어린이대공원 건대입구 뚝섬유원지 청담 강남구청 학동 논현 반포 고속터미널 내방 총신대입구 남성 숭실대입구 상도 장승배기 신대방삼거리 보라매 신풍 대림 남구로 가산디지털단지'),
+        T('도봉산 수락산 마들 노원 중계 하계 공릉 태릉입구 먹골 중화 상봉 면목 사가정 용마산 중곡 군자 어린이대공원 건대입구 자양 청담 강남구청 학동 논현 반포 고속터미널 내방 총신대입구 남성 숭실대입구 상도 장승배기 신대방삼거리 보라매 신풍 대림 남구로 가산디지털단지'),
       ],
     },
     {
@@ -82,7 +82,7 @@
     '남영:Namyeong|용산:Yongsan|노량진:Noryangjin|대방:Daebang|신길:Singil|영등포:Yeongdeungpo|구로:Guro|구일:Guil|개봉:Gaebong|오류동:Oryu-dong|온수:Onsu|가산디지털단지:Gasan Digital Complex|독산:Doksan|금천구청:Geumcheon-gu Office',
     '구파발:Gupabal|연신내:Yeonsinnae|불광:Bulgwang|녹번:Nokbeon|홍제:Hongje|무악재:Muakjae|독립문:Dongnimmun|경복궁:Gyeongbokgung|안국:Anguk|충무로:Chungmuro|동대입구:Dongguk Univ.|약수:Yaksu|금호:Geumho|옥수:Oksu',
     '압구정:Apgujeong|신사:Sinsa|잠원:Jamwon|고속터미널:Express Bus Terminal|남부터미널:Southern Bus Terminal|양재:Yangjae|매봉:Maebong|도곡:Dogok|대치:Daechi|학여울:Hangnyeoul|대청:Daecheong|일원:Irwon|수서:Suseo|가락시장:Garak Market|경찰병원:Police Hospital|오금:Ogeum',
-    '당고개:Danggogae|상계:Sanggye|노원:Nowon|쌍문:Ssangmun|수유:Suyu|미아:Mia|미아사거리:Mia-sageori|길음:Gireum|성신여대입구:Sungshin Women\'s Univ.|한성대입구:Hansung Univ.|혜화:Hyehwa|명동:Myeongdong|회현:Hoehyeon',
+    '불암산:Buramsan|상계:Sanggye|노원:Nowon|쌍문:Ssangmun|수유:Suyu|미아:Mia|미아사거리:Mia-sageori|길음:Gireum|성신여대입구:Sungshin Women\'s Univ.|한성대입구:Hansung Univ.|혜화:Hyehwa|명동:Myeongdong|회현:Hoehyeon',
     '숙대입구:Sookmyung Women\'s Univ.|삼각지:Samgakji|신용산:Sinyongsan|이촌:Ichon|동작:Dongjak|총신대입구:Chongshin Univ.|남태령:Namtaeryeong',
     '방화:Banghwa|개화산:Gaehwasan|김포공항:Gimpo Int\'l Airport|송정:Songjeong|마곡:Magok|발산:Balsan|우장산:Ujangsan|화곡:Hwagok|신정:Sinjeong|목동:Mokdong|오목교:Omokgyo|양평:Yangpyeong|영등포시장:Yeongdeungpo Market',
     '여의도:Yeouido|여의나루:Yeouinaru|마포:Mapo|공덕:Gongdeok|애오개:Aeogae|서대문:Seodaemun|광화문:Gwanghwamun|청구:Cheonggu|신금호:Singeumho|행당:Haengdang|마장:Majang|답십리:Dapsimni|장한평:Janghanpyeong|군자:Gunja|아차산:Achasan|광나루:Gwangnaru',
@@ -90,7 +90,7 @@
     '응암:Eungam|역촌:Yeokchon|독바위:Dokbawi|구산:Gusan|새절:Saejeol|증산:Jeungsan|디지털미디어시티:Digital Media City|월드컵경기장:World Cup Stadium|마포구청:Mapo-gu Office|망원:Mangwon|상수:Sangsu|광흥창:Gwangheungchang|대흥:Daeheung|효창공원앞:Hyochang Park',
     '녹사평:Noksapyeong|이태원:Itaewon|한강진:Hangangjin|버티고개:Beotigogae|창신:Changsin|보문:Bomun|안암:Anam|고려대:Korea Univ.|월곡:Wolgok|상월곡:Sangwolgok|돌곶이:Dolgoji|태릉입구:Taereung|화랑대:Hwarangdae|봉화산:Bonghwasan',
     '수락산:Suraksan|마들:Madeul|중계:Junggye|하계:Hagye|공릉:Gongneung|먹골:Meokgol|중화:Junghwa|상봉:Sangbong|면목:Myeonmok|사가정:Sagajeong|용마산:Yongmasan|중곡:Junggok|어린이대공원:Children\'s Grand Park',
-    '뚝섬유원지:Ttukseom Resort|청담:Cheongdam|강남구청:Gangnam-gu Office|학동:Hakdong|논현:Nonhyeon|반포:Banpo|내방:Naebang|남성:Namseong|숭실대입구:Soongsil Univ.|상도:Sangdo|장승배기:Jangseungbaegi|신대방삼거리:Sindaebang-samgeori|보라매:Boramae|신풍:Sinpung|남구로:Namguro',
+    '자양:Jayang|청담:Cheongdam|강남구청:Gangnam-gu Office|학동:Hakdong|논현:Nonhyeon|반포:Banpo|내방:Naebang|남성:Namseong|숭실대입구:Soongsil Univ.|상도:Sangdo|장승배기:Jangseungbaegi|신대방삼거리:Sindaebang-samgeori|보라매:Boramae|신풍:Sinpung|남구로:Namguro',
     '암사:Amsa|강동구청:Gangdong-gu Office|몽촌토성:Mongchontoseong|석촌:Seokchon|송파:Songpa|문정:Munjeong|장지:Jangji|복정:Bokjeong',
     '개화:Gaehwa|공항시장:Gonghang Market|신방화:Sinbanghwa|마곡나루:Magongnaru|양천향교:Yangcheonhyanggyo|가양:Gayang|증미:Jeungmi|등촌:Deungchon|염창:Yeomchang|신목동:Sinmokdong|선유도:Seonyudo',
     '국회의사당:National Assembly|샛강:Saetgang|노들:Nodeul|흑석:Heukseok|구반포:Gubanpo|신반포:Sinbanpo|사평:Sapyeong|신논현:Sinnonhyeon|언주:Eonju|선정릉:Seonjeongneung|삼성중앙:Samseong Jungang|봉은사:Bongeunsa',
@@ -144,7 +144,7 @@
     '올림픽공원': [['명소', '올림픽공원', '88올림픽 기념 공원'], ['명소', '소마미술관', '공원 안 미술관']],
     '성수': [['명소', '성수동 연무장길', '카페와 공방 골목'], ['명소', '성수동 수제화거리', '수제화 공방 골목']],
     '건대입구': [['명소', '커먼그라운드', '컨테이너로 만든 상점가'], ['맛집', '건대 맛의거리', '술집과 식당 골목']],
-    '뚝섬유원지': [['명소', '뚝섬한강공원', '수영장과 피크닉']],
+    '자양': [['명소', '뚝섬한강공원', '수영장과 피크닉']],
     '어린이대공원': [['명소', '서울어린이대공원', '동물원과 놀이시설']],
     '왕십리': [['맛집', '왕십리 곱창골목', '곱창집 골목']],
     '신림': [['맛집', '신림 순대타운', '백순대 골목']],
@@ -171,5 +171,8 @@
     '광화문': [['명소', '광화문광장', '세종대왕·이순신 동상'], ['명소', '교보문고 광화문점', '대형 서점'], ['명소', '세종문화회관', '공연장']],
   };
 
-  window.METRO = { LINES, EN, CURATED };
+  /* 이름이 바뀐 역: 예전 이름으로 저장된 도장·백업을 새 이름으로 옮길 때 써요 */
+  const RENAMED = { '당고개': '불암산', '뚝섬유원지': '자양' };
+
+  window.METRO = { LINES, EN, CURATED, RENAMED };
 })();
