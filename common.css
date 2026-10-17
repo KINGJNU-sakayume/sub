@@ -237,41 +237,7 @@ button { font: inherit; color: inherit; }
 .x { padding: 6px 12px; font-size: .92rem; font-weight: 700; background: none; border: 1.5px solid #868f94; border-radius: 999px; cursor: pointer; }
 .drawer-body { flex: 1; overflow: auto; padding: 14px 0 36px; }
 .sum { margin: 0 22px 12px; font-size: .95rem; font-weight: 700; color: var(--muted); font-variant-numeric: tabular-nums; }
-.gallery {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(92px, 1fr));
-  gap: 10px;
-  padding: 4px 22px 20px;
-}
-.gallery .empty { grid-column: 1 / -1; color: var(--muted); margin: 0; }
-.tile { display: grid; gap: 4px; padding: 0; text-align: center; background: none; border: 0; cursor: pointer; }
-.tile-img { display: grid; place-items: center; aspect-ratio: 1; }
-.tile-img img { max-width: 100%; max-height: 100%; filter: drop-shadow(0 3px 4px rgba(0, 0, 0, .25)); }
-.tile-img .seal { width: 86%; mix-blend-mode: multiply; transform: rotate(-7deg); }
-.tile-name { font-size: .85rem; font-weight: 700; }
-.rline { border-top: 1px solid #e3e7e6; }
-.rhead {
-  display: grid;
-  grid-template-columns: 68px minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 14px;
-  width: 100%;
-  padding: 12px 22px;
-  text-align: left;
-  background: none;
-  border: 0;
-  cursor: pointer;
-}
-.rbadge { --s: 34px; justify-self: start; }
-/* 역이 100개 넘는 노선(1호선)도 칸 안에 들어가게 칸 사이를 1px로, 넘치면 잘라요 */
-.rbar { display: flex; gap: 1px; height: 10px; min-width: 0; overflow: hidden; }
-.rbar i { flex: 1; min-width: 0; background: #e3e7e6; border-radius: 1px; }
-.rbar i.on { background: var(--c); }
-.rcnt { font-size: .92rem; font-weight: 600; color: var(--muted); font-variant-numeric: tabular-nums; }
-.rchips { display: flex; flex-wrap: wrap; gap: 8px; padding: 2px 22px 18px; }
-.rchips[hidden] { display: none; }
-.chip { padding: 6px 12px; font-size: .9rem; font-weight: 600; background: #fff; border: 1.5px solid var(--c); border-radius: 999px; cursor: pointer; }
-.chip.on { color: var(--k); background: var(--c); }
+.rbadge { --s: 34px; }
 .settings { margin: 22px 22px 0; padding-top: 18px; border-top: 1px solid #e3e7e6; }
 .settings h3 { margin: 0 0 12px; font-size: 1rem; font-weight: 800; }
 .settings .switch { display: flex; margin-bottom: 12px; }
@@ -424,3 +390,34 @@ button { font: inherit; color: inherit; }
 .or-lines { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px; }
 .or-lines .lbadge { --s: 22px; }
 .or-geo { padding: 10px 12px; font-weight: 700; color: var(--ink); background: none; border: 1.5px dashed #9aa3a7; border-radius: 10px; cursor: pointer; }
+
+/* 도장첩: 노선 탭 + 역마다 도장 칸 */
+.book { padding: 0 0 6px; }
+.book-tabs { display: flex; gap: 4px; overflow-x: auto; padding: 2px 22px 12px; scrollbar-width: none; }
+.book-tabs::-webkit-scrollbar { display: none; }
+.book-tab { flex: none; display: grid; justify-items: center; gap: 3px; padding: 4px; background: none; border: 0; border-radius: 10px; cursor: pointer; opacity: .5; }
+.book-tab[aria-pressed="true"] { opacity: 1; background: rgba(35, 41, 45, .06); }
+.book-tab .rbadge { --s: 32px; }
+.book-tab small { font-size: .7rem; font-weight: 700; color: var(--muted); font-variant-numeric: tabular-nums; }
+.book-page {
+  margin: 0 16px;
+  padding: 16px 12px 18px;
+  background-color: #fbf7ec;
+  background-image: radial-gradient(rgba(150, 120, 60, .07) 1px, transparent 1px);
+  background-size: 6px 6px;
+  border-radius: 6px;
+  box-shadow: 0 0 0 1px #e8dfc6, 0 10px 24px -14px rgba(60, 40, 0, .4);
+}
+.book-title { display: flex; align-items: center; gap: 10px; margin: 0 4px 12px; font-size: 1.08rem; font-weight: 900; }
+.book-title .rbadge { --s: 30px; }
+.book-cnt { margin-left: auto; font-size: .92rem; font-weight: 700; color: #7a6a45; font-variant-numeric: tabular-nums; }
+.book-empty { margin: -4px 4px 12px; font-size: .88rem; color: #7a6a45; }
+.book-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px 8px; }
+.slot { display: grid; justify-items: center; gap: 4px; padding: 0; text-align: center; background: none; border: 0; cursor: pointer; }
+.slot-ring { position: relative; display: grid; place-items: center; width: 100%; aspect-ratio: 1; border: 2px dashed #d6caa8; border-radius: 50%; }
+.slot.on .slot-ring { border-color: transparent; }
+.slot-ring .seal { width: 108%; height: 108%; mix-blend-mode: multiply; transform: rotate(-6deg); }
+.slot-ring img { position: absolute; inset: 4%; width: 92%; height: 92%; object-fit: contain; transform: rotate(-6deg); filter: drop-shadow(0 2px 3px rgba(0, 0, 0, .25)); }
+.slot-name { font-size: .78rem; font-weight: 700; line-height: 1.2; color: #3a342a; overflow-wrap: anywhere; }
+.slot:not(.on) .slot-name { font-weight: 600; color: #a99d80; }
+.slot:focus-visible .slot-ring { outline: 3px solid #1a73e8; outline-offset: 2px; }
