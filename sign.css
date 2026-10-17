@@ -1,6 +1,7 @@
 /* 방안1: 역명판 화면 */
 body {
   min-height: 100vh;
+  min-height: 100dvh;
   background-color: var(--tile);
   background-image:
     linear-gradient(var(--grout) 2px, transparent 2px),
@@ -15,7 +16,7 @@ body::before {
   pointer-events: none;
   background: radial-gradient(ellipse 80% 55% at 50% 0%, rgba(255, 255, 255, .6), transparent 70%);
 }
-.wrap { position: relative; max-width: 1000px; margin: 0 auto; padding: 0 20px 70px; }
+.wrap { position: relative; max-width: 1000px; margin: 0 auto; padding: 0 max(20px, env(safe-area-inset-right, 0px)) calc(70px + env(safe-area-inset-bottom, 0px)) max(20px, env(safe-area-inset-left, 0px)); }
 
 .sign-wrap { position: relative; }
 .sign {
@@ -35,24 +36,16 @@ body::before {
 }
 .core { grid-column: 2; display: flex; align-items: center; gap: clamp(14px, 2.6vw, 30px); }
 .badge {
-  --d: clamp(66px, 11vw, 112px);
-  flex: none;
-  display: grid;
-  place-items: center;
-  width: var(--d);
-  height: var(--d);
-  border-radius: 50%;
+  --s: clamp(66px, 11vw, 112px);
   background: var(--line);
   color: var(--ink-on);
-  font-size: calc(var(--d) * .56);
-  font-weight: 800;
-  line-height: 1;
   transition: background-color .09s linear;
 }
 .names { min-width: 0; }
-.ko-win { overflow: hidden; padding: .02em 0; }
+/* 역 이름·영문·이웃역·환승 줄 높이를 모두 고정해서, 굴러가는 동안 역명판 높이가 흔들리지 않아요 */
+.names { --base: clamp(2.7rem, 8.4vw, 5.8rem); }
+.ko-win { display: flex; align-items: center; height: calc(var(--base) * 1.2); overflow: hidden; }
 .ko {
-  --base: clamp(2.7rem, 8.4vw, 5.8rem);
   font-size: calc(var(--base) * var(--k, 1));
   font-weight: 900;
   line-height: 1.15;
@@ -60,9 +53,13 @@ body::before {
   white-space: nowrap;
 }
 .en {
-  min-height: 1.5em;
-  margin-top: .1em;
-  font-size: clamp(1rem, 2.4vw, 1.5rem);
+  --en: clamp(1rem, 2.4vw, 1.5rem);
+  height: calc(var(--en) * 1.5);
+  margin-top: calc(var(--en) * .1);
+  overflow: hidden;
+  font-size: calc(var(--en) * var(--e, 1));
+  line-height: calc(var(--en) * 1.5);
+  white-space: nowrap;
   font-weight: 600;
   letter-spacing: .01em;
   color: var(--muted);
@@ -72,20 +69,24 @@ body::before {
   align-items: center;
   gap: 10px;
   min-width: 0;
+  height: 1.4em;
   font-size: clamp(.95rem, 2vw, 1.3rem);
   font-weight: 700;
   color: #30373c;
 }
 .nb.prev { grid-column: 1; grid-row: 1; justify-content: flex-start; }
 .nb.next { grid-column: 3; grid-row: 1; justify-content: flex-end; }
-.nb span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nb span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 1.3; }
 .tri { flex: none; width: 0; height: 0; border-style: solid; }
 .prev .tri { border-width: 9px 14px 9px 0; border-color: transparent var(--line) transparent transparent; }
 .next .tri { border-width: 9px 0 9px 14px; border-color: transparent transparent transparent var(--line); }
-.xfer { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 56px; padding: 0 20px 20px; }
+.xfer { display: flex; align-items: center; justify-content: center; gap: 8px; height: 56px; padding: 0 20px 14px; overflow: hidden; }
 .xlabel { margin-right: 4px; font-size: .9rem; font-weight: 700; color: var(--muted); }
-.xbadge { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; font-size: .95rem; font-weight: 800; line-height: 1; }
-.sign.settle { animation: brake .55s cubic-bezier(.2, .9, .2, 1); }
+/* 멈출 때 흔들림은 역명판과 붙은 스티커가 함께 (역명판에만 걸면 스티커와 겹치는 순서가 잠깐 바뀌어요) */
+.sign-wrap.settle { animation: brake .55s cubic-bezier(.2, .9, .2, 1); }
+/* 스티커는 이웃역 이름·환승 줄 뒤로: 글자가 스티커 위에 보이게 */
+.nb, .xfer { position: relative; z-index: 3; }
+.nb span { text-shadow: 0 0 3px var(--sign), 0 0 6px var(--sign), 0 0 10px var(--sign); }
 @keyframes brake {
   0% { transform: translateX(-7px); }
   35% { transform: translateX(3px); }
@@ -120,11 +121,6 @@ body::before {
   .core { grid-column: 1 / -1; grid-row: 1; justify-content: center; }
   .nb.prev { grid-column: 1; grid-row: 2; }
   .nb.next { grid-column: 2; grid-row: 2; }
-  .nb span { white-space: normal; line-height: 1.25; overflow-wrap: anywhere; }
   .sticker { right: -6px; bottom: -14px; width: 84px; }
 }
 
-/* 글자 배지 노선(경의중앙·수인분당 등): 원 대신 둥근 사각 */
-.badge.txt { white-space: nowrap; width: auto; min-width: var(--d); padding: 0 calc(var(--d) * .16); border-radius: calc(var(--d) * .3); font-size: calc(var(--d) * .3); letter-spacing: -.03em; }
-.badge.txt[data-len="2"] { font-size: calc(var(--d) * .36); }
-.xbadge.txt { white-space: nowrap; width: auto; padding: 0 8px; border-radius: 14px; font-size: .78rem; letter-spacing: -.02em; }

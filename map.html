@@ -2,12 +2,18 @@
 <html lang="ko">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>역 도장깨기 · 지도</title>
   <meta name="description" content="서울 지도 위에서 노선을 뽑고 역을 뽑는 지하철 도장깨기">
   <meta name="theme-color" content="#f3f4f2">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='15' fill='%2300a84d'/%3E%3Ctext x='16' y='22.5' font-size='18' font-weight='700' text-anchor='middle' fill='white' font-family='sans-serif'%3E역%3C/text%3E%3C/svg%3E">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="도장깨기">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="icons/icon-180.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Gothic+A1:wght@400;600;800;900&display=swap" rel="stylesheet">
@@ -17,7 +23,7 @@
 <body>
   <header class="top">
     <h1>역 도장깨기</h1>
-    <a class="alt-link" href="index.html">역명판으로 보기</a>
+    <nav class="views" aria-label="보기 방식"><a href="index.html">역명판</a><a href="map.html" aria-current="page">지도</a></nav>
     <button type="button" class="rec-btn" id="openRecord">기록</button>
   </header>
 
@@ -37,7 +43,7 @@
     </div>
 
     <aside class="panel" id="panel" hidden>
-      <button type="button" class="panel-toggle" id="panelToggle" aria-expanded="true">안내 접기</button>
+      <button type="button" class="panel-toggle" id="panelToggle" aria-expanded="true" aria-label="안내 접기"><span class="grip" aria-hidden="true"></span></button>
       <div class="panel-head" id="panelHead"></div>
       <div class="board" id="board"></div>
     </aside>
@@ -47,6 +53,7 @@
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
   <script src="data.js"></script>
+  <script src="access.js"></script>
   <script src="geo.js"></script>
   <script src="core.js"></script>
   <script src="map.js"></script>

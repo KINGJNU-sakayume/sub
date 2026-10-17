@@ -12,15 +12,23 @@
   const enc = encodeURIComponent;
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const REGION = window.METRO.REGION || {};
+  const ACCESS = window.METRO.ACCESS || {};   // '역|장소' → [출구, 도보 분] (access.js)
   const LINE = Object.fromEntries(LINES.map((l) => [l.n, l]));
   const ORIGIN = '남춘천';
 
   /* 노선·역 표시 이름 */
   const lineName = (L) => L.name || L.n + '호선';
+  const isText = (L) => typeof L.n !== 'number';          // 숫자 대신 글자 배지를 쓰는 노선
+  /* 배지 글자: 숫자 노선은 원, 글자 노선은 같은 높이의 둥근 사각에 이름 그대로 ('경의중앙') */
   const lineShort = (L) => L.short || String(L.n);
   const lineEn = (L) => L.en || 'Line ' + L.n;
-  const isText = (L) => typeof L.n !== 'number';          // 숫자 대신 글자 배지를 쓰는 노선
   const label = (key) => String(key).replace(/\(.+\)$/, '');  // '신촌(경의중앙)' → '신촌'
+  /* 받침에 맞춰 '로/으로': '공항철도로', '2호선으로', '경의중앙선으로' (ㄹ 받침도 '로') */
+  const ro = (word) => {
+    const c = String(word).charCodeAt(String(word).length - 1) - 0xac00;
+    const jong = c >= 0 && c <= 11171 ? c % 28 : 0;
+    return word + (jong === 0 || jong === 8 ? '로' : '으로');
+  };
 
   /* ---------- 역 색인 ---------- */
   const STATIONS = new Map();
@@ -57,7 +65,7 @@
 
   /* ---------- 저장 ---------- */
   const KEY = 'metro-stamp:v2';
-  const state = { stamps: {}, unvisited: true, sound: true, voice: false, scope: 'seoul', lines: {} };
+  const state = { stamps: {}, unvisited: true, sound: true, voice: false, scope: 'seoul', lines: {}, cur: null };
   try {
     const raw = localStorage.getItem(KEY);
     if (raw) {
@@ -75,6 +83,18 @@
   const save = () => { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) { /* 무시 */ } };
   if (!state.lines || typeof state.lines !== 'object') state.lines = {};
   if (state.scope !== 'all') state.scope = 'seoul';
+
+  /* 지금 보고 있는 역: 역명판 ↔ 지도로 넘어가도 이어서 보여 줘요 */
+  function current() {
+    const c = state.cur;
+    if (!c || !STATIONS.has(c.name)) return null;
+    const lineN = STATIONS.get(c.name).lines.find((n) => String(n) === String(c.line));
+    return lineN === undefined ? null : { name: c.name, line: lineN };
+  }
+  function setCurrent(cur) {
+    state.cur = cur ? { name: cur.name, line: cur.line } : null;
+    save();
+  }
 
   /* ---------- 뽑기 범위 (설정) ---------- */
   const lineOn = (L) => (L.n in state.lines ? !!state.lines[L.n] : L.pick !== false);
@@ -181,15 +201,57 @@
   const tick = (i) => tone(760 + (i % 3) * 45, 0.035, 'square', 0.016, 0);
   const chime = () => { tone(784, 0.55, 'sine', 0.07, 0); tone(587.33, 0.8, 'sine', 0.07, 0.3); };
   const thud = () => { tone(150, 0.12, 'sine', 0.12, 0); tone(90, 0.18, 'sine', 0.1, 0.02); };
-  function announce(name) {
-    if (!state.voice || !('speechSynthesis' in window)) return;
-    const base = label(name).replace(/역$/, '');
-    const u = new SpeechSynthesisUtterance('이번 역은 ' + base + ', ' + stationQuery(name) + '입니다.');
-    u.lang = 'ko-KR';
-    u.rate = 0.95;
-    window.speechSynthesis.cancel();
-    window.speechSynthesis.speak(u);
+  /* 안내방송: 실제 녹음은 저작권이 있어서 못 쓰고, 기기 TTS로 서울 지하철 안내 문장을 흉내 내요.
+     한국어 → 영어 순서, 앞에 짧은 알림음. 문 방향은 데이터가 없어 빼요 */
+  const tts = 'speechSynthesis' in window ? window.speechSynthesis : null;
+  const pickVoice = (lang, prefer) => {
+    if (!tts) return null;
+    const vs = tts.getVoices().filter((v) => v.lang.replace('_', '-').startsWith(lang));
+    return vs.find((v) => prefer.test(v.name)) || vs.find((v) => v.localService) || vs[0] || null;
+  };
+  if (tts && tts.addEventListener) tts.addEventListener('voiceschanged', () => {});
+  /* iOS는 사용자가 누른 그 순간에 한 번 말해 둬야 나중(뽑기가 끝난 뒤)에도 소리가 나요 */
+  function unlockVoice() {
+    if (!state.voice || !tts) return;
+    const u = new SpeechSynthesisUtterance(' ');
+    u.volume = 0;
+    tts.speak(u);
   }
+  function announceText(name, lineN) {
+    const st = STATIONS.get(name);
+    const base = label(name).replace(/역$/, '');
+    const others = st ? st.lines.filter((n) => n !== lineN).map((n) => LINE[n]) : [];
+    let ko = '이번 역은 ' + base + ', ' + stationQuery(name) + '입니다.';
+    if (others.length) ko += ' ' + ro(others.map(lineName).join(', ')) + ' 갈아타실 수 있습니다.';
+    let en = '';
+    if (st && st.en) {
+      en = 'This stop is ' + st.en + '.';
+      const enLine = (L) => (isText(L) ? L.en.replace(/–/g, ' ') + (/Line$|AREX/.test(L.en) ? '' : ' Line') : 'Line ' + L.n);
+      if (others.length) en += ' You can transfer to ' + others.map(enLine).join(', ') + '.';
+    }
+    return { ko, en };
+  }
+  async function announce(name, lineN) {
+    if (!state.voice || !tts) return;
+    const { ko, en } = announceText(name, lineN);
+    tts.cancel();
+    if (state.sound) { dingdong(); await sleep(1300); }
+    const say = (text, lang, voice) => {
+      const u = new SpeechSynthesisUtterance(text);
+      u.lang = lang;
+      if (voice) u.voice = voice;
+      u.rate = lang === 'ko-KR' ? 0.92 : 0.9;
+      u.pitch = 1.05;
+      tts.speak(u);
+    };
+    say(ko, 'ko-KR', pickVoice('ko', /Yuna|유나|Google/));
+    if (en) say(en, 'en-US', pickVoice('en', /Samantha|Google US|Ava|Allison/));
+  }
+  /* 안내방송 앞 알림음 (직접 만든 음, 실제 지하철 음원 아님) */
+  const dingdong = () => {
+    tone(1046.5, 0.5, 'sine', 0.06, 0); tone(1318.5, 0.5, 'sine', 0.05, 0.18);
+    tone(1568, 0.9, 'sine', 0.05, 0.36);
+  };
 
   /* ---------- 뽑기 엔진 ---------- */
   const delay = (i, total) => 45 + 330 * Math.pow(i / total, 2.6);
@@ -219,8 +281,10 @@
       audio();
       const roll = activeLines().map((x) => x.n);
       const len = roll.length;
-      const start = Math.floor(Math.random() * len);
-      const total = 18 + ((roll.indexOf(lineN) - start + len) % len);
+      /* 마지막 칸(i = total)이 뽑힌 노선이 되도록 시작 칸을 거꾸로 정해요.
+         예전엔 total = 18 + 차이 라서 노선이 9개가 아니면 다른 노선에서 멈췄어요 */
+      const total = 18 + Math.floor(Math.random() * len);
+      const start = (((roll.indexOf(lineN) - total) % len) + len) % len;
       for (let i = 0; i <= total; i++) {
         const n = roll[(start + i) % len];
         const d = delay(i, total);
@@ -233,17 +297,20 @@
       const s = tr.s;
       const idx = s.indexOf(name);
       const steps = 14 + Math.floor(Math.random() * 8);
+      /* 끝이 있는 노선은 종점에서 반대쪽 끝으로 튀지 않게, 남은 역이 많은 쪽에서 굴러와요 */
+      const dir = tr.loop || idx >= steps || idx + steps >= s.length ? -1 : 1;
       for (let i = 0; i <= steps; i++) {
-        const k = (((idx - (steps - i)) % s.length) + s.length) % s.length;
+        const k = (((idx + dir * (steps - i)) % s.length) + s.length) % s.length;
         const d = delay(i, steps);
         h.station(s[k], L, tr, d);
         tick(i);
         await sleep(d);
       }
     }
-    chime();
-    announce(name);
+    if (!state.voice) chime();
+    announce(name, lineN);
     const result = { name, line: lineN };
+    setCurrent(result);
     if (h.end) h.end(result);
     return result;
   }
@@ -526,28 +593,120 @@
     dropURL(name);
   }
 
-  async function stampWithFile(name, lineN, file, onStatus) {
+  /* 배경 제거 결과의 흐릿한 잔상을 지워요. level 0~0.9: 이보다 옅은 부분은 투명, 나머지는 다시 진하게 */
+  function cleanCut(cut, level) {
+    const c = document.createElement('canvas');
+    c.width = cut.width;
+    c.height = cut.height;
+    const ctx = c.getContext('2d');
+    ctx.drawImage(cut, 0, 0);
+    const img = ctx.getImageData(0, 0, c.width, c.height), d = img.data;
+    const t = level * 255;
+    let ink = 0;
+    for (let i = 3; i < d.length; i += 4) {
+      const a = d[i] <= t ? 0 : Math.round(((d[i] - t) * 255) / (255 - t));
+      d[i] = a;
+      if (a > 16) ink++;
+    }
+    ctx.putImageData(img, 0, 0);
+    return { canvas: c, ink };
+  }
+
+  /* 사진 → 스티커. choose({ photo, cut, make })가 있으면 사용자가 고른 스티커를 써요(null이면 취소) */
+  async function stampWithFile(name, lineN, file, onStatus, choose) {
     const say = onStatus || (() => {});
     say('사진 줄이는 중…');
     const photo = await fileToCanvas(file, 1024);
-    let sticker = null;
-    let cut = true;
+    let cut = null;
     try {
       say('배경 지우는 중… 폰에서는 20~40초쯤 걸려요');
-      const c = await cutOut(photo, say);
-      sticker = stickerFromCutout(c);
+      cut = await cutOut(photo, say);
     } catch (e) {
       console.warn('배경 제거 실패, 사진 그대로 사용', e);
-      cut = false;
-      sticker = stickerFromPhoto(photo);
+    }
+    const make = (mode, level) => {
+      if (mode === 'photo' || !cut) return { canvas: stickerFromPhoto(photo), ink: 1 };
+      const c = cleanCut(cut, level);
+      return { canvas: c.ink ? stickerFromCutout(c.canvas) : c.canvas, ink: c.ink };
+    };
+    let sticker;
+    if (choose) {
+      say('스티커 모양을 골라 주세요');
+      sticker = await choose({ photo, cut, make });
+      if (!sticker) return { cancelled: true, cut: !!cut };
+    } else {
+      sticker = make(cut ? 'cut' : 'photo', DEFAULT_CLEAN).canvas;
     }
     await savePhoto(name, sticker);
     const prev = state.stamps[name];
     state.stamps[name] = { d: prev ? prev.d : today(), l: prev && prev.l ? prev.l : lineN, p: 1 };
     save();
     thud();
-    emit('stamps', { name, fresh: !prev, cut });
-    return { cut };
+    emit('stamps', { name, fresh: !prev, cut: !!cut });
+    return { cut: !!cut };
+  }
+
+  /* ---------- 스티커 다듬기 창 ---------- */
+  const DEFAULT_CLEAN = 0.2;
+  function editSticker({ cut, make }) {
+    return new Promise((resolve) => {
+      const scrim = document.createElement('div');
+      scrim.className = 'scrim on';
+      scrim.style.zIndex = 2999;
+      const box = document.createElement('div');
+      box.className = 'editor';
+      box.setAttribute('role', 'dialog');
+      box.setAttribute('aria-modal', 'true');
+      box.setAttribute('aria-labelledby', 'edTitle');
+      box.innerHTML = `
+<h2 id="edTitle">스티커 다듬기</h2>
+<div class="ed-stage"><canvas class="ed-canvas" role="img" aria-label="스티커 미리보기"></canvas></div>
+<div class="ed-seg" role="group" aria-label="스티커 모양">
+  <button type="button" data-mode="cut" aria-pressed="${cut ? 'true' : 'false'}" ${cut ? '' : 'disabled'}>배경 지우기</button>
+  <button type="button" data-mode="photo" aria-pressed="${cut ? 'false' : 'true'}">사진 그대로</button>
+</div>
+<label class="ed-slider" ${cut ? '' : 'hidden'}><span>잔상 지우기</span><input type="range" id="edLevel" min="0" max="85" step="5" value="${DEFAULT_CLEAN * 100}"><output id="edOut"></output></label>
+<p class="ed-hint" id="edHint">${cut ? '흐릿하게 남은 부분이 있으면 오른쪽으로, 필요한 부분까지 지워지면 왼쪽으로 옮겨 보세요. 역명판처럼 판이 사진을 꽉 채우면 사진 그대로가 잘 맞아요.' : '배경을 지우지 못했어요. 사진을 둥근 스티커로 붙여요.'}</p>
+<div class="ed-actions"><button type="button" class="pill" data-act="cancel">취소</button><button type="button" class="ed-ok" data-act="ok">붙이기</button></div>`;
+      document.body.append(scrim, box);
+      const cv = $('.ed-canvas', box), range = $('#edLevel', box), out = $('#edOut', box), ok = $('[data-act="ok"]', box), hint = $('#edHint', box);
+      const HINT = {
+        cut: '흐릿하게 남은 부분이 있으면 오른쪽으로, 필요한 부분까지 지워지면 왼쪽으로 옮겨 보세요. 역명판처럼 판이 사진을 꽉 채우면 사진 그대로가 잘 맞아요.',
+        photo: cut ? '사진을 자르지 않고 둥근 스티커로 붙여요.' : '배경을 지우지 못했어요. 사진을 둥근 스티커로 붙여요.',
+      };
+      let mode = cut ? 'cut' : 'photo', cur = null, queued = false;
+      const paint = () => {
+        queued = false;
+        cur = make(mode, Number(range.value) / 100);
+        out.textContent = range.value + '%';
+        cv.width = cur.canvas.width;
+        cv.height = cur.canvas.height;
+        cv.getContext('2d').drawImage(cur.canvas, 0, 0);
+        ok.disabled = !cur.ink;
+        hint.textContent = cur.ink ? HINT[mode] : '다 지워졌어요. 슬라이더를 왼쪽으로 옮겨 주세요.';
+      };
+      const later = () => { if (!queued) { queued = true; requestAnimationFrame(paint); } };
+      box.querySelectorAll('[data-mode]').forEach((b) => b.addEventListener('click', () => {
+        mode = b.dataset.mode;
+        box.querySelectorAll('[data-mode]').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+        $('.ed-slider', box).hidden = mode !== 'cut';
+        later();
+      }));
+      range.addEventListener('input', later);
+      const done = (v) => {
+        document.removeEventListener('keydown', onKey);
+        scrim.remove();
+        box.remove();
+        resolve(v);
+      };
+      const onKey = (e) => { if (e.key === 'Escape') done(null); };
+      document.addEventListener('keydown', onKey);
+      scrim.addEventListener('click', () => done(null));
+      $('[data-act="cancel"]', box).addEventListener('click', () => done(null));
+      ok.addEventListener('click', () => { if (cur && cur.ink) done(cur.canvas); });
+      paint();
+      ok.focus();
+    });
   }
 
   function stampPlain(name, lineN) {
@@ -616,7 +775,8 @@
   function sealSVG(name, lineN, date) {
     const id = 'r' + (++sealId);
     const L = LINE[lineN] || LINES[0];
-    const color = L.color === '#BDB092' ? '#8f8160' : L.color;
+    /* 밝은 노선색(9호선·수인분당·우이신설)은 종이 위에서 잘 보이게 진하게 찍어요 */
+    const color = { '#BDB092': '#8f8160', '#FABE00': '#c08f00', '#B7C452': '#7f8a2a' }[L.color] || L.color;
     const shown = label(name);
     const chars = [...shown];
     const two = chars.length > 5;
@@ -627,7 +787,7 @@
     const y0 = two ? 100 : 108;
     const text = rows.map((r, i) => `<text x="100" y="${y0 + i * (fs + 4)}" text-anchor="middle" font-size="${fs.toFixed(1)}" font-weight="900" fill="${color}" stroke="none">${esc(r)}</text>`).join('');
     const tag = lineShort(L);
-    const tagSize = Math.min(16, 34 / Math.max(1, [...tag].length));
+    const tagSize = isText(L) ? Math.min(13, 44 / Math.max(1, [...tag].length)) : 16;
     return `<svg class="seal" viewBox="0 0 200 200" role="img" aria-label="${esc(shown)} 도장" font-family="Gothic A1, sans-serif">
   <defs>
     <filter id="f${id}" x="-5%" y="-5%" width="110%" height="110%">
@@ -643,7 +803,7 @@
     <circle cx="100" cy="100" r="59" stroke-width="1.5"/>
     <text font-size="13" font-weight="800" fill="${color}" stroke="none" letter-spacing="2"><textPath href="#t${id}" startOffset="50%" text-anchor="middle">서울 지하철</textPath></text>
     <text font-size="13" font-weight="800" fill="${color}" stroke="none" letter-spacing="1"><textPath href="#b${id}" startOffset="50%" text-anchor="middle">${esc(dotDate(date))}</textPath></text>
-    ${isText(L) ? `<rect x="72" y="52" width="56" height="24" rx="12" fill="${color}" stroke="none"/>` : `<circle cx="100" cy="64" r="13" fill="${color}" stroke="none"/>`}
+    ${isText(L) ? `<rect x="70" y="51" width="60" height="26" rx="8" fill="${color}" stroke="none"/>` : `<circle cx="100" cy="64" r="14" fill="${color}" stroke="none"/>`}
     <text x="100" y="${(64 + tagSize * 0.36).toFixed(1)}" text-anchor="middle" font-size="${tagSize.toFixed(1)}" font-weight="800" fill="${L.ink === '#fff' ? '#fff' : L.ink}" stroke="none">${esc(tag)}</text>
     ${text}
   </g>
@@ -661,11 +821,12 @@
       const L = LINE[s.line];
       const next = r.segments[i + 1];
       const dir = s.loopDir ? s.loopDir + ' ' + esc(label(s.via[1])) + ' 방향' : esc(label(s.via[1])) + ' 방면';
-      const fork = s.branch ? ` ${esc(s.branch.at)}에서 ${esc(s.branch.name)}으로 가는 열차인지 행선지를 확인하세요.` : '';
-      items.push(`<li class="leg" style="--c:${L.color}"><span class="rb${isText(L) ? ' txt' : ''}" style="background:${L.color};color:${L.ink}">${esc(lineShort(L))}</span><div class="rt"><b>${esc(segLabel(s))} ${esc(label(s.from))}에서 ${dir}</b><span class="sub">${s.stops}정거장, ${next ? esc(label(s.to)) + '에서 ' + esc(segLabel(next)) + '으로 환승' : esc(label(s.to)) + '에서 내려요'}${fork}</span></div></li>`);
+      const fork = s.branch ? ` ${esc(s.branch.at)}에서 ${esc(ro(s.branch.name))} 가는 열차인지 행선지를 확인하세요.` : '';
+      items.push(`<li class="leg" style="--c:${L.color}"><span class="rb${isText(L) ? ' txt' : ''}" style="background:${L.color};color:${L.ink}">${esc(lineShort(L))}</span><div class="rt"><b>${esc(segLabel(s))} ${esc(label(s.from))}에서 ${dir}</b><span class="sub">${s.stops}정거장, ${next ? esc(label(s.to)) + '에서 ' + esc(ro(segLabel(next))) + ' 환승' : esc(label(s.to)) + '에서 내려요'}${fork}</span></div></li>`);
     });
     items.push(`<li class="leg end"><span class="rb rb-end"></span><div class="rt"><b>${esc(stationQuery(dest))} 도착</b></div></li>`);
-    return `<ol class="route">${items.join('')}</ol>`;
+    const wide = r.segments.some((s) => isText(LINE[s.line]));
+    return `<ol class="route${wide ? ' wide' : ''}">${items.join('')}</ol>`;
   }
 
   function routeHTML(dest) {
@@ -695,15 +856,17 @@
     const stamp = state.stamps[name];
     const sq = stationQuery(name);
     const places = CURATED[name] || [];
-    const placeRows = places.map((p) => {
-      const ml = mapLinks(p[3] || p[1]);
-      return `<li class="place">
+    /* 장소마다 가까운 출구와 도보 시간(어림)만 보여 줘요. 아직 조사 안 된 장소는 이름과 설명만 */
+    const accessHTML = (p) => {
+      const a = ACCESS[name + '|' + p[1]];
+      if (!a) return '';
+      const [exit, min] = a;
+      return `<span class="pacc">${exit ? `<b>${esc(exit)}번 출구</b>` : '<b>역에서</b>'} 도보 약 ${esc(min)}분</span>`;
+    };
+    const placeRows = places.map((p) => `<li class="place">
         <span class="kind ${p[0] === '맛집' ? 'food' : ''}">${esc(p[0])}</span>
-        <span><span class="pname">${esc(p[1])}</span><span class="pdesc">${esc(p[2])}</span></span>
-        <span class="plinks"><a href="${ml.kakao}" target="_blank" rel="noopener">카카오맵</a><a href="${ml.naver}" target="_blank" rel="noopener">네이버지도</a></span>
-      </li>`;
-    }).join('');
-    const chips = ['맛집', '카페', '가볼 만한 곳'].map((kw) => `<a href="${mapLinks(sq + ' ' + kw).kakao}" target="_blank" rel="noopener">${esc(sq)} ${esc(kw)}</a>`).join('');
+        <span><span class="pname">${esc(p[1])}</span><span class="pdesc">${esc(p[2])}</span>${accessHTML(p)}</span>
+      </li>`).join('');
 
     el.innerHTML = `
 <div class="stampbar" style="--line:${L.color};--ink-on:${L.ink}">
@@ -722,8 +885,7 @@
   </section>
   <section class="sect">
     <h3>이 역 근처</h3>
-    ${places.length ? `<ul class="places">${placeRows}</ul>` : '<p class="empty">아직 골라 둔 장소가 없어요. 지도에서 바로 찾아보세요.</p>'}
-    <div class="chips" style="margin-top:${places.length ? 14 : 0}px">${chips}</div>
+    ${places.length ? `<ul class="places">${placeRows}</ul>` : '<p class="empty">아직 골라 둔 장소가 없어요.</p>'}
     <p class="hint"><a href="${mapLinks(sq).kakao}" target="_blank" rel="noopener">카카오맵</a>이나 <a href="${mapLinks(sq).naver}" target="_blank" rel="noopener">네이버지도</a>에서 열면 길찾기를 바로 쓸 수 있어요.</p>
   </section>
 </div>`;
@@ -737,8 +899,13 @@
       busyStamp = true;
       cam.disabled = true;
       try {
-        const r = await stampWithFile(name, line, f, (t) => { status.textContent = t; });
+        const r = await stampWithFile(name, line, f, (t) => { status.textContent = t; }, editSticker);
         busyStamp = false;
+        if (r.cancelled) {
+          status.textContent = '붙이지 않았어요. 다시 찍거나 고를 수 있어요';
+          cam.disabled = false;
+          return;
+        }
         if (!r.cut) {
           const s2 = $('.status', el);
           if (s2) s2.textContent = '배경은 못 지웠지만 사진 그대로 붙였어요';
@@ -789,7 +956,8 @@
   <section class="settings">
     <h3>설정</h3>
     <label class="switch"><input type="checkbox" id="optSound"><span class="box" aria-hidden="true"></span><span>소리</span></label>
-    <label class="switch"><input type="checkbox" id="optVoice"><span class="box" aria-hidden="true"></span><span>안내방송</span></label>
+    <label class="switch"><input type="checkbox" id="optVoice"><span class="box" aria-hidden="true"></span><span>안내방송 (기기 음성으로 흉내)</span></label>
+    <button type="button" class="pill" id="voiceTry">안내방송 들어 보기</button>
   </section>
   <section class="settings">
     <h3>뽑기 범위</h3>
@@ -826,7 +994,17 @@
     optVoice.addEventListener('change', () => {
       state.voice = optVoice.checked;
       save();
-      if (!state.voice && 'speechSynthesis' in window) window.speechSynthesis.cancel();
+      if (!state.voice && tts) tts.cancel();
+    });
+    const voiceTry = $('#voiceTry', dr);
+    if (!tts) voiceTry.hidden = true;
+    voiceTry.addEventListener('click', () => {
+      const c = current() || { name: '왕십리', line: 2 };
+      const was = state.voice;
+      state.voice = true;
+      unlockVoice();
+      announce(c.name, c.line);
+      state.voice = was;
     });
 
     /* 뽑기 범위: 지역(서울/수도권 전체)과 노선별 켜기 */
@@ -996,5 +1174,6 @@
     trackFor, neighbors, stationQuery, mapLinks, today, dotDate,
     draw, eligible, routesTo, photoURL, sealSVG, stampPlain, stampWithFile, unstamp,
     renderInfo, mountDrawer, bindCount, tone, thud, chime,
+    current, setCurrent, unlockVoice, announce, announceText,
   };
 })();
