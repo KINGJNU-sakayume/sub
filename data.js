@@ -1,4 +1,9 @@
-/* 서울 지하철 1~9호선 (서울 구간) 데이터
+/* 수도권 전철 노선 데이터
+   n: 노선 id. 1~9호선은 숫자(저장된 도장 기록과 호환), 나머지는 짧은 영문 id
+   name/short/en: 노선 이름 · 배지 글자 · 영문 (1~9호선은 생략하면 'N호선' · 'N' · 'Line N')
+   kakao: 카카오 장소 이름에 붙는 노선명(좌표 검사 도구용), min: 한 정거장 어림 시간(분, 기본 2)
+   pick: 뽑기 기본값(생략하면 켜짐). 설정에서 노선별로 바꿀 수 있어요
+   역 이름이 같지만 다른 역은 '신촌(경의중앙)'처럼 괄호를 붙여 구분하고, 화면엔 괄호 앞만 보여요
    tracks: 노선의 갈래. 같은 갈래 안의 순서가 이전역/다음역이 됩니다.
    loop:true 이면 끝이 처음으로 이어지는 순환 구간입니다.
    opt.fwd/back: 순환선에서 나열 순서대로 / 거꾸로 갈 때의 이름
@@ -12,8 +17,10 @@
     {
       n: 1, color: '#0052A4', ink: '#fff',
       tracks: [
-        T('도봉산 도봉 방학 창동 녹천 월계 광운대 석계 신이문 외대앞 회기 청량리 제기동 신설동 동묘앞 동대문 종로5가 종로3가 종각 시청 서울역 남영 용산 노량진 대방 신길 영등포 신도림 구로 가산디지털단지 독산 금천구청'),
-        T('구로 구일 개봉 오류동 온수', false, { name: '경인선' }),
+        T('연천 전곡 청산 소요산 동두천 보산 동두천중앙 지행 덕정 덕계 양주 녹양 가능 의정부 회룡 망월사 도봉산 도봉 방학 창동 녹천 월계 광운대 석계 신이문 외대앞 회기 청량리 제기동 신설동 동묘앞 동대문 종로5가 종로3가 종각 시청 서울역 남영 용산 노량진 대방 신길 영등포 신도림 구로 가산디지털단지 독산 금천구청 석수 관악 안양 명학 금정 군포 당정 의왕 성균관대 화서 수원 세류 병점 세마 오산대 오산 진위 송탄 서정리 평택지제 평택 성환 직산 두정 천안 봉명 쌍용 아산 탕정 배방 온양온천 신창'),
+        T('구로 구일 개봉 오류동 온수 역곡 소사 부천 중동 송내 부개 부평 백운 동암 간석 주안 도화 제물포 도원 동인천 인천', false, { name: '경인선' }),
+        T('병점 서동탄', false, { name: '서동탄 방면' }),
+        T('금천구청 광명', false, { sep: true, name: '광명 셔틀' }),
       ],
     },
     {
@@ -27,39 +34,39 @@
     {
       n: 3, color: '#EF7C1C', ink: '#fff',
       tracks: [
-        T('구파발 연신내 불광 녹번 홍제 무악재 독립문 경복궁 안국 종로3가 을지로3가 충무로 동대입구 약수 금호 옥수 압구정 신사 잠원 고속터미널 교대 남부터미널 양재 매봉 도곡 대치 학여울 대청 일원 수서 가락시장 경찰병원 오금'),
+        T('대화 주엽 정발산 마두 백석 대곡 화정 원당 원흥 삼송 지축 구파발 연신내 불광 녹번 홍제 무악재 독립문 경복궁 안국 종로3가 을지로3가 충무로 동대입구 약수 금호 옥수 압구정 신사 잠원 고속터미널 교대 남부터미널 양재 매봉 도곡 대치 학여울 대청 일원 수서 가락시장 경찰병원 오금'),
       ],
     },
     {
       n: 4, color: '#00A5DE', ink: '#fff',
       tracks: [
-        T('불암산 상계 노원 창동 쌍문 수유 미아 미아사거리 길음 성신여대입구 한성대입구 혜화 동대문 동대문역사문화공원 충무로 명동 회현 서울역 숙대입구 삼각지 신용산 이촌 동작 총신대입구 사당 남태령'),
+        T('진접 오남 별내별가람 불암산 상계 노원 창동 쌍문 수유 미아 미아사거리 길음 성신여대입구 한성대입구 혜화 동대문 동대문역사문화공원 충무로 명동 회현 서울역 숙대입구 삼각지 신용산 이촌 동작 총신대입구 사당 남태령 선바위 경마공원 대공원 과천 정부과천청사 인덕원 평촌 범계 금정 산본 수리산 대야미 반월 상록수 한대앞 중앙 고잔 초지 안산 신길온천 정왕 오이도'),
       ],
     },
     {
       n: 5, color: '#996CAC', ink: '#fff',
       tracks: [
-        T('방화 개화산 김포공항 송정 마곡 발산 우장산 화곡 까치산 신정 목동 오목교 양평 영등포구청 영등포시장 신길 여의도 여의나루 마포 공덕 애오개 충정로 서대문 광화문 종로3가 을지로4가 동대문역사문화공원 청구 신금호 행당 왕십리 마장 답십리 장한평 군자 아차산 광나루 천호 강동 길동 굽은다리 명일 고덕 상일동 강일'),
+        T('방화 개화산 김포공항 송정 마곡 발산 우장산 화곡 까치산 신정 목동 오목교 양평 영등포구청 영등포시장 신길 여의도 여의나루 마포 공덕 애오개 충정로 서대문 광화문 종로3가 을지로4가 동대문역사문화공원 청구 신금호 행당 왕십리 마장 답십리 장한평 군자 아차산 광나루 천호 강동 길동 굽은다리 명일 고덕 상일동 강일 미사 하남풍산 하남시청 하남검단산'),
         T('강동 둔촌동 올림픽공원 방이 오금 개롱 거여 마천', false, { name: '마천 방면' }),
       ],
     },
     {
       n: 6, color: '#CD7C2F', ink: '#fff',
       tracks: [
-        T('응암 새절 증산 디지털미디어시티 월드컵경기장 마포구청 망원 합정 상수 광흥창 대흥 공덕 효창공원앞 삼각지 녹사평 이태원 한강진 버티고개 약수 청구 신당 동묘앞 창신 보문 안암 고려대 월곡 상월곡 돌곶이 석계 태릉입구 화랑대 봉화산'),
+        T('응암 새절 증산 디지털미디어시티 월드컵경기장 마포구청 망원 합정 상수 광흥창 대흥 공덕 효창공원앞 삼각지 녹사평 이태원 한강진 버티고개 약수 청구 신당 동묘앞 창신 보문 안암 고려대 월곡 상월곡 돌곶이 석계 태릉입구 화랑대 봉화산 신내'),
         T('응암 역촌 불광 독바위 연신내 구산', true, { oneway: true, name: '응암순환' }),
       ],
     },
     {
       n: 7, color: '#747F00', ink: '#fff',
       tracks: [
-        T('도봉산 수락산 마들 노원 중계 하계 공릉 태릉입구 먹골 중화 상봉 면목 사가정 용마산 중곡 군자 어린이대공원 건대입구 자양 청담 강남구청 학동 논현 반포 고속터미널 내방 총신대입구 남성 숭실대입구 상도 장승배기 신대방삼거리 보라매 신풍 대림 남구로 가산디지털단지'),
+        T('장암 도봉산 수락산 마들 노원 중계 하계 공릉 태릉입구 먹골 중화 상봉 면목 사가정 용마산 중곡 군자 어린이대공원 건대입구 자양 청담 강남구청 학동 논현 반포 고속터미널 내방 총신대입구 남성 숭실대입구 상도 장승배기 신대방삼거리 보라매 신풍 대림 남구로 가산디지털단지 철산 광명사거리 천왕 온수 까치울 부천종합운동장 춘의 신중동 부천시청 상동 삼산체육관 굴포천 부평구청 산곡 석남'),
       ],
     },
     {
       n: 8, color: '#E6186C', ink: '#fff',
       tracks: [
-        T('암사 천호 강동구청 몽촌토성 잠실 석촌 송파 가락시장 문정 장지 복정'),
+        T('별내 다산 동구릉 구리 장자호수공원 암사역사공원 암사 천호 강동구청 몽촌토성 잠실 석촌 송파 가락시장 문정 장지 복정 남위례 산성 남한산성입구 단대오거리 신흥 수진 모란'),
       ],
     },
     {
@@ -68,7 +75,76 @@
         T('개화 김포공항 공항시장 신방화 마곡나루 양천향교 가양 증미 등촌 염창 신목동 선유도 당산 국회의사당 여의도 샛강 노량진 노들 흑석 동작 구반포 신반포 고속터미널 사평 신논현 언주 선정릉 삼성중앙 봉은사 종합운동장 삼전 석촌고분 석촌 송파나루 한성백제 올림픽공원 둔촌오륜 중앙보훈병원'),
       ],
     },
+    {
+      n: 'GJ', name: '경의중앙선', short: '경의중앙', en: 'Gyeongui–Jungang', kakao: '경의중앙선', min: 3, pick: false,
+      color: '#77C4A3', ink: '#10302a',
+      tracks: [
+        T('문산 파주 월롱 금촌 금릉 운정 야당 탄현 일산 풍산 백마 곡산 대곡 능곡 행신 강매 한국항공대 수색 디지털미디어시티 가좌 홍대입구 서강대 공덕 효창공원앞 용산 이촌 서빙고 한남 옥수 응봉 왕십리 청량리 회기 중랑 상봉 망우 양원 구리 도농 양정 덕소 도심 팔당 운길산 양수 신원 국수 아신 오빈 양평(경의중앙) 원덕 용문 지평'),
+        T('서울역 신촌(경의중앙) 가좌', false, { sep: true, name: '서울역 갈래' }),
+      ],
+    },
+    {
+      n: 'SB', name: '수인분당선', short: '수인분당', en: 'Suin–Bundang', kakao: '수인분당선', pick: false,
+      color: '#FABE00', ink: '#2a2200',
+      tracks: [
+        T('청량리 왕십리 서울숲 압구정로데오 강남구청 선정릉 선릉 한티 도곡 구룡 개포동 대모산입구 수서 복정 가천대 태평 모란 야탑 이매 서현 수내 정자 미금 오리 죽전 보정 구성 신갈 기흥 상갈 청명 영통 망포 매탄권선 수원시청 매교 수원 고색 오목천 어천 야목 사리 한대앞 중앙 고잔 초지 안산 신길온천 정왕 오이도 달월 월곶 소래포구 인천논현 호구포 남동인더스파크 원인재 연수 송도 인하대 숭의 신포 인천'),
+      ],
+    },
+    {
+      n: 'SS', name: '신분당선', short: '신분당', en: 'Sinbundang', kakao: '신분당선', min: 3, pick: false,
+      color: '#D4003B', ink: '#fff',
+      tracks: [
+        T('신사 논현 신논현 강남 양재 양재시민의숲 청계산입구 판교 정자 미금 동천 수지구청 성복 상현 광교중앙 광교'),
+      ],
+    },
+    {
+      n: 'AR', name: '공항철도', short: '공항', en: 'AREX', kakao: '공항철도', min: 4, pick: false,
+      color: '#0090D2', ink: '#fff',
+      tracks: [
+        T('서울역 공덕 홍대입구 디지털미디어시티 마곡나루 김포공항 계양 검암 청라국제도시 영종 운서 공항화물청사 인천공항1터미널 인천공항2터미널'),
+      ],
+    },
+    {
+      n: 'GC', name: '경춘선', short: '경춘', en: 'Gyeongchun', kakao: '경춘선', min: 4, pick: false,
+      color: '#0C8E72', ink: '#fff',
+      tracks: [
+        T('광운대 상봉 망우 신내 갈매 별내 퇴계원 사릉 금곡 평내호평 천마산 마석 대성리 청평 상천 가평 굴봉산 백양리 강촌 김유정 남춘천 춘천'),
+      ],
+    },
+    {
+      n: 'UI', name: '우이신설선', short: '우이', en: 'Ui–Sinseol', kakao: '우이신설선', pick: false,
+      color: '#B7C452', ink: '#25290c',
+      tracks: [
+        T('북한산우이 솔밭공원 4·19민주묘지 가오리 화계 삼양 삼양사거리 솔샘 북한산보국문 정릉 성신여대입구 보문 신설동'),
+      ],
+    },
+    {
+      n: 'SL', name: '신림선', short: '신림', en: 'Sillim', kakao: '신림선', pick: false,
+      color: '#6789CA', ink: '#fff',
+      tracks: [
+        T('샛강 대방 서울지방병무청 보라매 보라매공원 보라매병원 당곡 신림 서원 서울대벤처타운 관악산'),
+      ],
+    },
   ];
+
+  /* 서울 밖 역. 여기 없는 역은 서울이에요 (설정의 '서울' 범위에 쓰여요) */
+  const REGION_RAW = {
+    경기: '복정 망월사 회룡 의정부 가능 녹양 양주 덕계 덕정 지행 동두천중앙 보산 동두천 소요산 청산 전곡 연천 ' +
+      '석수 관악 안양 명학 금정 군포 당정 의왕 성균관대 화서 수원 세류 병점 세마 오산대 오산 진위 송탄 서정리 평택지제 평택 서동탄 광명 ' +
+      '역곡 소사 부천 중동 송내 대화 주엽 정발산 마두 백석 대곡 화정 원당 원흥 삼송 지축 ' +
+      '진접 오남 별내별가람 선바위 경마공원 대공원 과천 정부과천청사 인덕원 평촌 범계 산본 수리산 대야미 반월 상록수 한대앞 중앙 고잔 초지 안산 신길온천 정왕 오이도 ' +
+      '미사 하남풍산 하남시청 하남검단산 장암 철산 광명사거리 까치울 부천종합운동장 춘의 신중동 부천시청 상동 ' +
+      '별내 다산 동구릉 구리 장자호수공원 남위례 산성 남한산성입구 단대오거리 신흥 수진 모란 ' +
+      '문산 파주 월롱 금촌 금릉 운정 야당 탄현 일산 풍산 백마 곡산 능곡 행신 강매 한국항공대 도농 양정 덕소 도심 팔당 운길산 양수 신원 국수 아신 오빈 양평(경의중앙) 원덕 용문 지평 ' +
+      '가천대 태평 야탑 이매 서현 수내 정자 미금 오리 죽전 보정 구성 신갈 기흥 상갈 청명 영통 망포 매탄권선 수원시청 매교 고색 오목천 어천 야목 사리 달월 월곶 ' +
+      '판교 동천 수지구청 성복 상현 광교중앙 광교 갈매 퇴계원 사릉 금곡 평내호평 천마산 마석 대성리 청평 상천 가평 굴봉산',
+    인천: '부개 부평 백운 동암 간석 주안 도화 제물포 도원 동인천 인천 삼산체육관 굴포천 부평구청 산곡 석남 ' +
+      '소래포구 인천논현 호구포 남동인더스파크 원인재 연수 송도 인하대 숭의 신포 계양 검암 청라국제도시 영종 운서 공항화물청사 인천공항1터미널 인천공항2터미널',
+    충남: '성환 직산 두정 천안 봉명 쌍용 아산 탕정 배방 온양온천 신창',
+    강원: '백양리 강촌 김유정 남춘천 춘천',
+  };
+  const REGION = {};
+  Object.entries(REGION_RAW).forEach(([r, list]) => list.split(' ').forEach((n) => { REGION[n] = r; }));
 
   /* 영문 역명 (서울교통공사 표기 기준으로 정리) */
   const EN_RAW = [
@@ -95,6 +171,28 @@
     '개화:Gaehwa|공항시장:Gonghang Market|신방화:Sinbanghwa|마곡나루:Magongnaru|양천향교:Yangcheonhyanggyo|가양:Gayang|증미:Jeungmi|등촌:Deungchon|염창:Yeomchang|신목동:Sinmokdong|선유도:Seonyudo',
     '국회의사당:National Assembly|샛강:Saetgang|노들:Nodeul|흑석:Heukseok|구반포:Gubanpo|신반포:Sinbanpo|사평:Sapyeong|신논현:Sinnonhyeon|언주:Eonju|선정릉:Seonjeongneung|삼성중앙:Samseong Jungang|봉은사:Bongeunsa',
     '삼전:Samjeon|석촌고분:Seokchon-gobun|송파나루:Songpanaru|한성백제:Hanseong Baekje|둔촌오륜:Dunchon-oryun|중앙보훈병원:VHS Medical Center',
+    '신내:Sinnae|암사역사공원:Amsa History Park',
+    '수색:Susaek|가좌:Gajwa|서강대:Sogang Univ.|서빙고:Seobinggo|한남:Hannam|응봉:Eungbong|중랑:Jungnang|망우:Mangu|양원:Yangwon|신촌(경의중앙):Sinchon',
+    '서울숲:Seoul Forest|압구정로데오:Apgujeongrodeo|한티:Hanti|구룡:Guryong|개포동:Gaepo-dong|대모산입구:Daemosan|양재시민의숲:Yangjae Citizens\' Forest|청계산입구:Cheonggyesan',
+    '북한산우이:Bukhansan Ui|솔밭공원:Solbat Park|4·19민주묘지:4.19 Nat\'l Cemetery|가오리:Gaori|화계:Hwagye|삼양:Samyang|삼양사거리:Samyang Sageori|솔샘:Solsaem|북한산보국문:Bukhansan Bogungmun|정릉:Jeongneung',
+    '연천:Yeoncheon|전곡:Jeongok|청산:Cheongsan|소요산:Soyosan|동두천:Dongducheon|보산:Bosan|동두천중앙:Dongducheon Jungang|지행:Jihaeng|덕정:Deokjeong|덕계:Deokgye|양주:Yangju|녹양:Nogyang|가능:Ganeung|의정부:Uijeongbu|회룡:Hoeryong|망월사:Mangwolsa',
+    '석수:Seoksu|관악:Gwanak|안양:Anyang|명학:Myeonghak|금정:Geumjeong|군포:Gunpo|당정:Dangjeong|의왕:Uiwang|성균관대:Sungkyunkwan Univ.|화서:Hwaseo|수원:Suwon|세류:Seryu|병점:Byeongjeom|세마:Sema|오산대:Osan College|오산:Osan|진위:Jinwi|송탄:Songtan|서정리:Seojeong-ri|평택지제:Pyeongtaek Jije|평택:Pyeongtaek',
+    '성환:Seonghwan|직산:Jiksan|두정:Dujeong|천안:Cheonan|봉명:Bongmyeong|쌍용:Ssangyong|아산:Asan|탕정:Tangjeong|배방:Baebang|온양온천:Onyangoncheon|신창:Sinchang|서동탄:Seodongtan|광명:Gwangmyeong',
+    '역곡:Yeokgok|소사:Sosa|부천:Bucheon|중동:Jung-dong|송내:Songnae|부개:Bugae|부평:Bupyeong|백운:Baegun|동암:Dongam|간석:Ganseok|주안:Juan|도화:Dohwa|제물포:Jemulpo|도원:Dowon|동인천:Dongincheon|인천:Incheon',
+    '대화:Daehwa|주엽:Juyeop|정발산:Jeongbalsan|마두:Madu|백석:Baekseok|대곡:Daegok|화정:Hwajeong|원당:Wondang|원흥:Wonheung|삼송:Samsong|지축:Jichuk',
+    '진접:Jinjeop|오남:Onam|별내별가람:Byeollae Byeolgaram|선바위:Seonbawi|경마공원:Seoul Racecourse Park|대공원:Seoul Grand Park|과천:Gwacheon|정부과천청사:Government Complex Gwacheon|인덕원:Indeogwon|평촌:Pyeongchon|범계:Beomgye',
+    '산본:Sanbon|수리산:Surisan|대야미:Daeyami|반월:Banwol|상록수:Sangnoksu|한대앞:Hanyang Univ. at Ansan|중앙:Jungang|고잔:Gojan|초지:Choji|안산:Ansan|신길온천:Singiloncheon|정왕:Jeongwang|오이도:Oido',
+    '미사:Misa|하남풍산:Hanam Pungsan|하남시청:Hanam City Hall|하남검단산:Hanam Geomdansan|장암:Jangam',
+    '철산:Cheolsan|광명사거리:Gwangmyeong Sageori|천왕:Cheonwang|까치울:Kkachiul|부천종합운동장:Bucheon Stadium|춘의:Chunui|신중동:Sinjung-dong|부천시청:Bucheon City Hall|상동:Sang-dong|삼산체육관:Samsan Gymnasium|굴포천:Gulpocheon|부평구청:Bupyeong-gu Office|산곡:Sangok|석남:Seongnam',
+    '별내:Byeollae|다산:Dasan|동구릉:Donggureung|구리:Guri|장자호수공원:Jangja Lake Park|남위례:Namwirye|산성:Sanseong|남한산성입구:Namhansanseong|단대오거리:Dandae Ogeori|신흥:Sinheung|수진:Sujin|모란:Moran',
+    '문산:Munsan|파주:Paju|월롱:Wollong|금촌:Geumchon|금릉:Geumneung|운정:Unjeong|야당:Yadang|탄현:Tanhyeon|일산:Ilsan|풍산:Pungsan|백마:Baengma|곡산:Goksan|능곡:Neunggok|행신:Haengsin|강매:Gangmae|한국항공대:Korea Aerospace Univ.',
+    '도농:Donong|양정:Yangjeong|덕소:Deokso|도심:Dosim|팔당:Paldang|운길산:Ungilsan|양수:Yangsu|신원:Sinwon|국수:Guksu|아신:Asin|오빈:Obin|양평(경의중앙):Yangpyeong|원덕:Wondeok|용문:Yongmun|지평:Jipyeong',
+    '가천대:Gachon Univ.|태평:Taepyeong|야탑:Yatap|이매:Imae|서현:Seohyeon|수내:Sunae|정자:Jeongja|미금:Migeum|오리:Ori|죽전:Jukjeon|보정:Bojeong|구성:Guseong|신갈:Singal|기흥:Giheung|상갈:Sanggal|청명:Cheongmyeong|영통:Yeongtong|망포:Mangpo',
+    '매탄권선:Maetan Gwonseon|수원시청:Suwon City Hall|매교:Maegyo|고색:Gosaek|오목천:Omokcheon|어천:Eocheon|야목:Yamok|사리:Sari|달월:Dalwol|월곶:Wolgot|소래포구:Soraepogu|인천논현:Incheon Nonhyeon|호구포:Hogupo|남동인더스파크:Namdong Industrial Park|원인재:Woninjae|연수:Yeonsu|송도:Songdo|인하대:Inha Univ.|숭의:Sungui|신포:Sinpo',
+    '판교:Pangyo|동천:Dongcheon|수지구청:Suji-gu Office|성복:Seongbok|상현:Sanghyeon|광교중앙:Gwanggyo Jungang|광교:Gwanggyo',
+    '계양:Gyeyang|검암:Geomam|청라국제도시:Cheongna Int\'l City|영종:Yeongjong|운서:Unseo|공항화물청사:Airport Cargo Terminal|인천공항1터미널:Incheon Airport T1|인천공항2터미널:Incheon Airport T2',
+    '갈매:Galmae|퇴계원:Toegyewon|사릉:Sareung|금곡:Geumgok|평내호평:Pyeongnae Hopyeong|천마산:Cheonmasan|마석:Maseok|대성리:Daeseong-ri|청평:Cheongpyeong|상천:Sangcheon|가평:Gapyeong|굴봉산:Gulbongsan|백양리:Baegyang-ri|강촌:Gangchon|김유정:Kim Yu-jeong|남춘천:Namchuncheon|춘천:Chuncheon',
+    '서울지방병무청:Seoul Regional Military Manpower Admin.|보라매공원:Boramae Park|보라매병원:Boramae Medical Center|당곡:Danggok|서원:Seowon|서울대벤처타운:Seoul Nat\'l Univ. Venture Town|관악산:Gwanaksan',
   ];
   const EN = {};
   EN_RAW.join('|').split('|').forEach((p) => {
@@ -174,5 +272,5 @@
   /* 이름이 바뀐 역: 예전 이름으로 저장된 도장·백업을 새 이름으로 옮길 때 써요 */
   const RENAMED = { '당고개': '불암산', '뚝섬유원지': '자양' };
 
-  window.METRO = { LINES, EN, CURATED, RENAMED };
+  window.METRO = { LINES, EN, CURATED, RENAMED, REGION };
 })();

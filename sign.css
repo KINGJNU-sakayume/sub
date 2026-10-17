@@ -123,3 +123,8 @@ body::before {
   .nb span { white-space: normal; line-height: 1.25; overflow-wrap: anywhere; }
   .sticker { right: -6px; bottom: -14px; width: 84px; }
 }
+
+/* 글자 배지 노선(경의중앙·수인분당 등): 원 대신 둥근 사각 */
+.badge.txt { white-space: nowrap; width: auto; min-width: var(--d); padding: 0 calc(var(--d) * .16); border-radius: calc(var(--d) * .3); font-size: calc(var(--d) * .3); letter-spacing: -.03em; }
+.badge.txt[data-len="2"] { font-size: calc(var(--d) * .36); }
+.xbadge.txt { white-space: nowrap; width: auto; padding: 0 8px; border-radius: 14px; font-size: .78rem; letter-spacing: -.02em; }
