@@ -79,7 +79,7 @@
       if (!tts) { voiceInfo.textContent = '이 브라우저는 음성 안내를 지원하지 않아요.'; return; }
       voiceInfo.textContent = /premium|enhanced|프리미엄|향상/i.test(n)
         ? `지금 음성: ${n}. 향상된 음성을 쓰고 있어요.`
-        : `지금 음성: ${n || '기본'}. 아이폰 설정 › 손쉬운 사용 › 읽기 및 말하기 › 음성 › 한국어에서 '유나'의 향상된 음성을 내려받으면 훨씬 자연스러워요. 환승역에서는 짧은 국악풍 음악이 먼저 나와요.`;
+        : `지금 음성: ${n || '기본'}. 아이폰 설정 › 손쉬운 사용 › 읽기 및 말하기 › 음성 › 한국어에서 '유나'의 향상된 음성을 내려받으면 훨씬 자연스러워요.`;
     };
     if (tts && tts.addEventListener) tts.addEventListener('voiceschanged', paintVoice);
     voiceTry.addEventListener('click', () => {
