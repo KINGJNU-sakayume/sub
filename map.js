@@ -14,6 +14,8 @@
   const L_ = window.L;
 
   const GRAY = '#9aa1a5';
+  /* CARTO 배경 지도 키. 2026년 9월부터 키 없는 타일은 막혀요. 페이지에 그대로 보이는 공개용 키예요 */
+  const CARTO_KEY = 'cb1_4n1a_1_fddc778f9d09d67236fddad6';
   let map = null;
   const lineLayers = {};          // n -> [polyline]
   let dotLayer = null;            // 활성 호선의 역 점
@@ -190,7 +192,7 @@
     if (!L_) return;
     map = L_.map('map', { zoomControl: true, preferCanvas: false, attributionControl: true })
       .setView([37.5665, 126.978], 11);
-    L_.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+    L_.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png?key=' + CARTO_KEY, {
       subdomains: 'abcd', maxZoom: 19,
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
     }).addTo(map);
