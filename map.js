@@ -14,6 +14,7 @@
   const L_ = window.L;
 
   const GRAY = '#9aa1a5';
+  const mobile = window.matchMedia('(max-width: 860px)');
   /* CARTO 배경 지도 키. 2026년 9월부터 키 없는 타일은 막혀요. 페이지에 그대로 보이는 공개용 키예요 */
   const CARTO_KEY = 'cb1_4n1a_1_fddc778f9d09d67236fddad6';
   let map = null;
@@ -92,14 +93,20 @@
   function fit(n, animate) {
     const all = [];
     LINE[n].tracks.forEach((t) => all.push(...pts(t)));
-    if (all.length) map.fitBounds(L_.latLngBounds(all), { padding: [50, 50], animate: !!animate && !reduced });
+    if (!all.length) return;
+    const pad = mobile.matches ? { paddingTopLeft: [24, 24], paddingBottomRight: [24, 24 + dockSpace()] } : { padding: [50, 50] };
+    map.fitBounds(L_.latLngBounds(all), { ...pad, animate: !!animate && !reduced });
   }
-  function focus(name) {
+  /* 모바일에선 아래 안내 시트가 지도를 덮으니, 보이는 지도 영역 가운데에 역이 오게 맞춰요 */
+  const sheetCover = () => (mobile.matches && !D.panel.hidden ? D.panel.getBoundingClientRect().height : 0);
+  function focus(name, instant) {
     const ll = GEO[name];
     if (!ll) return;
     const z = 15;
-    if (reduced) map.setView(ll, z);
-    else map.flyTo(ll, z, { duration: 1.1 });
+    const dy = sheetCover() / 2;
+    const target = dy ? map.unproject(map.project(ll, z).add([0, dy]), z) : ll;
+    if (reduced || instant) map.setView(target, z, { animate: false });
+    else map.flyTo(target, z, { duration: 1.1 });
   }
 
   function showPanel(name, n) {
@@ -127,19 +134,19 @@
     D.head.append(b, tx, x);
     C.renderInfo(D.board, { name, line: n });
     D.panel.hidden = false;
-    D.panel.classList.remove('collapsed');
-    D.toggle.textContent = '안내 접기';
-    D.toggle.setAttribute('aria-expanded', 'true');
+    setCollapsed(mobile.matches);   // 모바일은 역 이름만 보이게 접어 두고, 누르면 펼쳐요
     D.panel.scrollTop = 0;
   }
 
-  function settle(name, n) {
+  function settle(name, n, quiet) {
     cur = { name, line: n };
+    C.setCurrent(cur);
     setActive(n);
     place(name, n);
-    focus(name);
     showPanel(name, n);
-    D.live.textContent = C.lineName(LINE[n]) + ' ' + C.stationQuery(name) + '이 나왔어요.';
+    focus(name, quiet);
+    D.draw.textContent = '다시 뽑기';
+    if (!quiet) D.live.textContent = C.lineName(LINE[n]) + ' ' + C.stationQuery(name) + '이 나왔어요.';
   }
 
   function pick(name, n) {
@@ -150,6 +157,7 @@
   async function onDraw() {
     if (busy || !map) return;
     busy = true;
+    C.unlockVoice();
     D.draw.disabled = true;
     D.draw.textContent = '달리는 중';
     let flashed = 0;
@@ -214,12 +222,28 @@
   D.unvisited.checked = !!state.unvisited;
   D.unvisited.addEventListener('change', () => { state.unvisited = D.unvisited.checked; C.save(); D.note.textContent = ''; });
   D.draw.addEventListener('click', onDraw);
-  D.toggle.addEventListener('click', () => {
-    const c = D.panel.classList.toggle('collapsed');
-    D.toggle.textContent = c ? '안내 펼치기' : '안내 접기';
+  function setCollapsed(c) {
+    D.panel.classList.toggle('collapsed', c);
+    D.toggle.setAttribute('aria-label', c ? '안내 펼치기' : '안내 접기');
     D.toggle.setAttribute('aria-expanded', String(!c));
     if (map) setTimeout(() => map.invalidateSize(), 50);
-  });
+  }
+  D.toggle.addEventListener('click', () => setCollapsed(!D.panel.classList.contains('collapsed')));
+  D.head.addEventListener('click', () => { if (mobile.matches) setCollapsed(!D.panel.classList.contains('collapsed')); });
+
+  /* 도크(역 뽑기)는 모바일에서 안내 시트 바로 위에 떠요 */
+  const dock = $('.dock');
+  const dockSpace = () => (dock ? dock.getBoundingClientRect().height + 24 : 0) + sheetCover();
+  if (window.ResizeObserver) {
+    new ResizeObserver(() => {
+      document.documentElement.style.setProperty('--sheet', (D.panel.hidden ? 0 : D.panel.getBoundingClientRect().height) + 'px');
+    }).observe(D.panel);
+  }
 
   init();
+  const last = C.current();
+  if (last && map) {
+    settle(last.name, last.line, true);
+    if (mobile.matches) setCollapsed(true);
+  }
 })();

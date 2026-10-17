@@ -19,7 +19,6 @@
     D.sign.style.setProperty('--ink-on', L ? L.ink : '#fff');
     D.num.textContent = L ? C.lineShort(L) : '';
     D.badge.classList.toggle('txt', !!L && C.isText(L));
-    D.badge.dataset.len = L ? [...C.lineShort(L)].length : 0;
   }
   function slide(node, dur) {
     if (reduced || !node.animate) return;
@@ -33,6 +32,11 @@
     const len = [...text].length;
     D.ko.style.setProperty('--k', Math.min(1, 4.8 / Math.max(len, 1)).toFixed(3));
     slide(D.ko, dur);
+  }
+  /* 영문 이름도 한 줄에 맞춰 줄여서 역명판 높이가 흔들리지 않게 해요 */
+  function setEn(text) {
+    D.en.textContent = text;
+    D.en.style.setProperty('--e', Math.min(1, 24 / Math.max([...text].length, 1)).toFixed(3));
   }
   function setNeighbors(p, q) {
     D.prevName.textContent = p ? C.label(p) : '';
@@ -65,7 +69,7 @@
     const { p, q } = C.neighbors(tr, name);
     paintLine(lineN);
     setKo(st.label, dur);
-    D.en.textContent = st.en;
+    setEn(st.en);
     setNeighbors(p, q);
     setXfer(st, lineN);
   }
@@ -112,6 +116,7 @@
   async function onDraw() {
     if (busy) return;
     busy = true;
+    C.unlockVoice();
     D.draw.disabled = true;
     D.draw.textContent = '달리는 중';
     const res = await C.draw({
@@ -126,7 +131,7 @@
       line(n, d) {
         paintLine(n);
         setKo(C.lineName(LINE[n]), d);
-        D.en.textContent = C.lineEn(LINE[n]);
+        setEn(C.lineEn(LINE[n]));
       },
       station(name, L, tr, d) { showStation(name, L.n, d, tr); },
     });
@@ -142,16 +147,18 @@
     settle(res);
   }
 
-  function select(name, lineN) {
+  function select(name, lineN, keepScroll) {
     if (busy) return;
     cur = { name, line: lineN };
+    C.setCurrent(cur);
     D.sign.dataset.state = 'settled';
     showStation(name, lineN, 0);
     D.live.textContent = C.lineName(LINE[lineN]) + ' ' + C.stationQuery(name);
     C.renderInfo(D.board, cur);
     D.board.hidden = false;
     updateSticker(false);
-    window.scrollTo({ top: 0, behavior: reduced ? 'auto' : 'smooth' });
+    D.draw.textContent = '다시 뽑기';
+    if (!keepScroll) window.scrollTo({ top: 0, behavior: reduced ? 'auto' : 'smooth' });
   }
 
   C.on('stamps', (e) => {
@@ -173,4 +180,6 @@
 
   paintLine(0);
   setNeighbors('', '');
+  const last = C.current();
+  if (last) select(last.name, last.line, true);
 })();

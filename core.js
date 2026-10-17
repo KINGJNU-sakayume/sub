@@ -17,10 +17,17 @@
 
   /* 노선·역 표시 이름 */
   const lineName = (L) => L.name || L.n + '호선';
-  const lineShort = (L) => L.short || String(L.n);
-  const lineEn = (L) => L.en || 'Line ' + L.n;
   const isText = (L) => typeof L.n !== 'number';          // 숫자 대신 글자 배지를 쓰는 노선
+  /* 배지 글자: 모든 배지를 같은 크기의 원으로 그리려고 글자 노선은 앞 두 글자만 써요 ('경의중앙' → '경의') */
+  const lineShort = (L) => (isText(L) ? [...(L.short || L.name || String(L.n))].slice(0, 2).join('') : String(L.n));
+  const lineEn = (L) => L.en || 'Line ' + L.n;
   const label = (key) => String(key).replace(/\(.+\)$/, '');  // '신촌(경의중앙)' → '신촌'
+  /* 받침에 맞춰 '로/으로': '공항철도로', '2호선으로', '경의중앙선으로' (ㄹ 받침도 '로') */
+  const ro = (word) => {
+    const c = String(word).charCodeAt(String(word).length - 1) - 0xac00;
+    const jong = c >= 0 && c <= 11171 ? c % 28 : 0;
+    return word + (jong === 0 || jong === 8 ? '로' : '으로');
+  };
 
   /* ---------- 역 색인 ---------- */
   const STATIONS = new Map();
@@ -57,7 +64,7 @@
 
   /* ---------- 저장 ---------- */
   const KEY = 'metro-stamp:v2';
-  const state = { stamps: {}, unvisited: true, sound: true, voice: false, scope: 'seoul', lines: {} };
+  const state = { stamps: {}, unvisited: true, sound: true, voice: false, scope: 'seoul', lines: {}, cur: null };
   try {
     const raw = localStorage.getItem(KEY);
     if (raw) {
@@ -75,6 +82,18 @@
   const save = () => { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) { /* 무시 */ } };
   if (!state.lines || typeof state.lines !== 'object') state.lines = {};
   if (state.scope !== 'all') state.scope = 'seoul';
+
+  /* 지금 보고 있는 역: 역명판 ↔ 지도로 넘어가도 이어서 보여 줘요 */
+  function current() {
+    const c = state.cur;
+    if (!c || !STATIONS.has(c.name)) return null;
+    const lineN = STATIONS.get(c.name).lines.find((n) => String(n) === String(c.line));
+    return lineN === undefined ? null : { name: c.name, line: lineN };
+  }
+  function setCurrent(cur) {
+    state.cur = cur ? { name: cur.name, line: cur.line } : null;
+    save();
+  }
 
   /* ---------- 뽑기 범위 (설정) ---------- */
   const lineOn = (L) => (L.n in state.lines ? !!state.lines[L.n] : L.pick !== false);
@@ -181,15 +200,57 @@
   const tick = (i) => tone(760 + (i % 3) * 45, 0.035, 'square', 0.016, 0);
   const chime = () => { tone(784, 0.55, 'sine', 0.07, 0); tone(587.33, 0.8, 'sine', 0.07, 0.3); };
   const thud = () => { tone(150, 0.12, 'sine', 0.12, 0); tone(90, 0.18, 'sine', 0.1, 0.02); };
-  function announce(name) {
-    if (!state.voice || !('speechSynthesis' in window)) return;
-    const base = label(name).replace(/역$/, '');
-    const u = new SpeechSynthesisUtterance('이번 역은 ' + base + ', ' + stationQuery(name) + '입니다.');
-    u.lang = 'ko-KR';
-    u.rate = 0.95;
-    window.speechSynthesis.cancel();
-    window.speechSynthesis.speak(u);
+  /* 안내방송: 실제 녹음은 저작권이 있어서 못 쓰고, 기기 TTS로 서울 지하철 안내 문장을 흉내 내요.
+     한국어 → 영어 순서, 앞에 짧은 알림음. 문 방향은 데이터가 없어 빼요 */
+  const tts = 'speechSynthesis' in window ? window.speechSynthesis : null;
+  const pickVoice = (lang, prefer) => {
+    if (!tts) return null;
+    const vs = tts.getVoices().filter((v) => v.lang.replace('_', '-').startsWith(lang));
+    return vs.find((v) => prefer.test(v.name)) || vs.find((v) => v.localService) || vs[0] || null;
+  };
+  if (tts && tts.addEventListener) tts.addEventListener('voiceschanged', () => {});
+  /* iOS는 사용자가 누른 그 순간에 한 번 말해 둬야 나중(뽑기가 끝난 뒤)에도 소리가 나요 */
+  function unlockVoice() {
+    if (!state.voice || !tts) return;
+    const u = new SpeechSynthesisUtterance(' ');
+    u.volume = 0;
+    tts.speak(u);
   }
+  function announceText(name, lineN) {
+    const st = STATIONS.get(name);
+    const base = label(name).replace(/역$/, '');
+    const others = st ? st.lines.filter((n) => n !== lineN).map((n) => LINE[n]) : [];
+    let ko = '이번 역은 ' + base + ', ' + stationQuery(name) + '입니다.';
+    if (others.length) ko += ' ' + ro(others.map(lineName).join(', ')) + ' 갈아타실 수 있습니다.';
+    let en = '';
+    if (st && st.en) {
+      en = 'This stop is ' + st.en + '.';
+      const enLine = (L) => (isText(L) ? L.en.replace(/–/g, ' ') + (/Line$|AREX/.test(L.en) ? '' : ' Line') : 'Line ' + L.n);
+      if (others.length) en += ' You can transfer to ' + others.map(enLine).join(', ') + '.';
+    }
+    return { ko, en };
+  }
+  async function announce(name, lineN) {
+    if (!state.voice || !tts) return;
+    const { ko, en } = announceText(name, lineN);
+    tts.cancel();
+    if (state.sound) { dingdong(); await sleep(1300); }
+    const say = (text, lang, voice) => {
+      const u = new SpeechSynthesisUtterance(text);
+      u.lang = lang;
+      if (voice) u.voice = voice;
+      u.rate = lang === 'ko-KR' ? 0.92 : 0.9;
+      u.pitch = 1.05;
+      tts.speak(u);
+    };
+    say(ko, 'ko-KR', pickVoice('ko', /Yuna|유나|Google/));
+    if (en) say(en, 'en-US', pickVoice('en', /Samantha|Google US|Ava|Allison/));
+  }
+  /* 안내방송 앞 알림음 (직접 만든 음, 실제 지하철 음원 아님) */
+  const dingdong = () => {
+    tone(1046.5, 0.5, 'sine', 0.06, 0); tone(1318.5, 0.5, 'sine', 0.05, 0.18);
+    tone(1568, 0.9, 'sine', 0.05, 0.36);
+  };
 
   /* ---------- 뽑기 엔진 ---------- */
   const delay = (i, total) => 45 + 330 * Math.pow(i / total, 2.6);
@@ -219,8 +280,10 @@
       audio();
       const roll = activeLines().map((x) => x.n);
       const len = roll.length;
-      const start = Math.floor(Math.random() * len);
-      const total = 18 + ((roll.indexOf(lineN) - start + len) % len);
+      /* 마지막 칸(i = total)이 뽑힌 노선이 되도록 시작 칸을 거꾸로 정해요.
+         예전엔 total = 18 + 차이 라서 노선이 9개가 아니면 다른 노선에서 멈췄어요 */
+      const total = 18 + Math.floor(Math.random() * len);
+      const start = (((roll.indexOf(lineN) - total) % len) + len) % len;
       for (let i = 0; i <= total; i++) {
         const n = roll[(start + i) % len];
         const d = delay(i, total);
@@ -233,17 +296,20 @@
       const s = tr.s;
       const idx = s.indexOf(name);
       const steps = 14 + Math.floor(Math.random() * 8);
+      /* 끝이 있는 노선은 종점에서 반대쪽 끝으로 튀지 않게, 남은 역이 많은 쪽에서 굴러와요 */
+      const dir = tr.loop || idx >= steps || idx + steps >= s.length ? -1 : 1;
       for (let i = 0; i <= steps; i++) {
-        const k = (((idx - (steps - i)) % s.length) + s.length) % s.length;
+        const k = (((idx + dir * (steps - i)) % s.length) + s.length) % s.length;
         const d = delay(i, steps);
         h.station(s[k], L, tr, d);
         tick(i);
         await sleep(d);
       }
     }
-    chime();
-    announce(name);
+    if (!state.voice) chime();
+    announce(name, lineN);
     const result = { name, line: lineN };
+    setCurrent(result);
     if (h.end) h.end(result);
     return result;
   }
@@ -616,7 +682,8 @@
   function sealSVG(name, lineN, date) {
     const id = 'r' + (++sealId);
     const L = LINE[lineN] || LINES[0];
-    const color = L.color === '#BDB092' ? '#8f8160' : L.color;
+    /* 밝은 노선색(9호선·수인분당·우이신설)은 종이 위에서 잘 보이게 진하게 찍어요 */
+    const color = { '#BDB092': '#8f8160', '#FABE00': '#c08f00', '#B7C452': '#7f8a2a' }[L.color] || L.color;
     const shown = label(name);
     const chars = [...shown];
     const two = chars.length > 5;
@@ -627,7 +694,7 @@
     const y0 = two ? 100 : 108;
     const text = rows.map((r, i) => `<text x="100" y="${y0 + i * (fs + 4)}" text-anchor="middle" font-size="${fs.toFixed(1)}" font-weight="900" fill="${color}" stroke="none">${esc(r)}</text>`).join('');
     const tag = lineShort(L);
-    const tagSize = Math.min(16, 34 / Math.max(1, [...tag].length));
+    const tagSize = isText(L) ? 11 : 16;
     return `<svg class="seal" viewBox="0 0 200 200" role="img" aria-label="${esc(shown)} 도장" font-family="Gothic A1, sans-serif">
   <defs>
     <filter id="f${id}" x="-5%" y="-5%" width="110%" height="110%">
@@ -643,7 +710,7 @@
     <circle cx="100" cy="100" r="59" stroke-width="1.5"/>
     <text font-size="13" font-weight="800" fill="${color}" stroke="none" letter-spacing="2"><textPath href="#t${id}" startOffset="50%" text-anchor="middle">서울 지하철</textPath></text>
     <text font-size="13" font-weight="800" fill="${color}" stroke="none" letter-spacing="1"><textPath href="#b${id}" startOffset="50%" text-anchor="middle">${esc(dotDate(date))}</textPath></text>
-    ${isText(L) ? `<rect x="72" y="52" width="56" height="24" rx="12" fill="${color}" stroke="none"/>` : `<circle cx="100" cy="64" r="13" fill="${color}" stroke="none"/>`}
+    <circle cx="100" cy="64" r="14" fill="${color}" stroke="none"/>
     <text x="100" y="${(64 + tagSize * 0.36).toFixed(1)}" text-anchor="middle" font-size="${tagSize.toFixed(1)}" font-weight="800" fill="${L.ink === '#fff' ? '#fff' : L.ink}" stroke="none">${esc(tag)}</text>
     ${text}
   </g>
@@ -661,8 +728,8 @@
       const L = LINE[s.line];
       const next = r.segments[i + 1];
       const dir = s.loopDir ? s.loopDir + ' ' + esc(label(s.via[1])) + ' 방향' : esc(label(s.via[1])) + ' 방면';
-      const fork = s.branch ? ` ${esc(s.branch.at)}에서 ${esc(s.branch.name)}으로 가는 열차인지 행선지를 확인하세요.` : '';
-      items.push(`<li class="leg" style="--c:${L.color}"><span class="rb${isText(L) ? ' txt' : ''}" style="background:${L.color};color:${L.ink}">${esc(lineShort(L))}</span><div class="rt"><b>${esc(segLabel(s))} ${esc(label(s.from))}에서 ${dir}</b><span class="sub">${s.stops}정거장, ${next ? esc(label(s.to)) + '에서 ' + esc(segLabel(next)) + '으로 환승' : esc(label(s.to)) + '에서 내려요'}${fork}</span></div></li>`);
+      const fork = s.branch ? ` ${esc(s.branch.at)}에서 ${esc(ro(s.branch.name))} 가는 열차인지 행선지를 확인하세요.` : '';
+      items.push(`<li class="leg" style="--c:${L.color}"><span class="rb${isText(L) ? ' txt' : ''}" style="background:${L.color};color:${L.ink}">${esc(lineShort(L))}</span><div class="rt"><b>${esc(segLabel(s))} ${esc(label(s.from))}에서 ${dir}</b><span class="sub">${s.stops}정거장, ${next ? esc(label(s.to)) + '에서 ' + esc(ro(segLabel(next))) + ' 환승' : esc(label(s.to)) + '에서 내려요'}${fork}</span></div></li>`);
     });
     items.push(`<li class="leg end"><span class="rb rb-end"></span><div class="rt"><b>${esc(stationQuery(dest))} 도착</b></div></li>`);
     return `<ol class="route">${items.join('')}</ol>`;
@@ -789,7 +856,8 @@
   <section class="settings">
     <h3>설정</h3>
     <label class="switch"><input type="checkbox" id="optSound"><span class="box" aria-hidden="true"></span><span>소리</span></label>
-    <label class="switch"><input type="checkbox" id="optVoice"><span class="box" aria-hidden="true"></span><span>안내방송</span></label>
+    <label class="switch"><input type="checkbox" id="optVoice"><span class="box" aria-hidden="true"></span><span>안내방송 (기기 음성으로 흉내)</span></label>
+    <button type="button" class="pill" id="voiceTry">안내방송 들어 보기</button>
   </section>
   <section class="settings">
     <h3>뽑기 범위</h3>
@@ -826,7 +894,17 @@
     optVoice.addEventListener('change', () => {
       state.voice = optVoice.checked;
       save();
-      if (!state.voice && 'speechSynthesis' in window) window.speechSynthesis.cancel();
+      if (!state.voice && tts) tts.cancel();
+    });
+    const voiceTry = $('#voiceTry', dr);
+    if (!tts) voiceTry.hidden = true;
+    voiceTry.addEventListener('click', () => {
+      const c = current() || { name: '왕십리', line: 2 };
+      const was = state.voice;
+      state.voice = true;
+      unlockVoice();
+      announce(c.name, c.line);
+      state.voice = was;
     });
 
     /* 뽑기 범위: 지역(서울/수도권 전체)과 노선별 켜기 */
@@ -996,5 +1074,6 @@
     trackFor, neighbors, stationQuery, mapLinks, today, dotDate,
     draw, eligible, routesTo, photoURL, sealSVG, stampPlain, stampWithFile, unstamp,
     renderInfo, mountDrawer, bindCount, tone, thud, chime,
+    current, setCurrent, unlockVoice, announce, announceText,
   };
 })();
