@@ -83,6 +83,11 @@ console.log('지도 ↔ 역명판 전환');
   await p.waitForSelector('#sign[data-state="settled"]');
   ok((await p.textContent('#ko')) === '종로3가', '역명판으로 넘어가도 같은 역');
   ok(/번 출구/.test(await p.textContent('#board')), '이 역 근처에 출구 안내가 보임');
+  await p.click('.origin-btn');
+  await p.fill('#orQ', '홍대입구');
+  await p.click('.or-opt');
+  ok(/^홍대입구.*에서 종로3가역까지$/.test((await p.textContent('.sect h3')).trim()), '출발역을 홍대입구로 바꾸면 길 안내 제목이 바뀜');
+  ok(!/코레일/.test(await p.textContent('#board')), '남춘천이 아니면 ITX 안내가 없음');
   ok(!p.errors.length, '자바스크립트 오류 없음' + (p.errors.length ? ': ' + p.errors[0] : ''));
   await p.context().close();
 }

@@ -3,11 +3,12 @@
   'use strict';
   const C = window.Core;
   const {
-    LINES, LINE, ORIGIN, lineName, trackFor,
+    LINES, LINE, ORIGIN, lineName, trackFor, origin,
   } = C;
 
-  /* ---------- 남춘천 출발 경로 ---------- */
-  /* 남춘천에서 걸리는 시간(분)으로 가장 빠른 길을 골라요. 모두 어림값이에요.
+  /* ---------- 출발역에서 가는 길 ---------- */
+  /* 출발역에서 걸리는 시간(분)으로 가장 빠른 길을 골라요. 모두 어림값이에요.
+     출발역이 남춘천일 때만 아래 ITX-청춘 진입점을 같이 비교해요. 다른 역에서는 지하철로만 찾아요.
      ITX-청춘은 대부분 청량리·용산에만 서서 두 역에서만 갈아타요(pen: 남춘천에서 그 역까지 ITX 시간).
      ITX에서 지하철로 갈아타는 것도 환승 한 번으로 셉니다.
      남춘천이 노선 데이터에 있으면 경춘선 전철로 바로 가는 길도 같이 비교해요(train 없음). */
@@ -123,11 +124,14 @@
   const segLabel = (s) => lineName(LINE[s.line]) + (s.sepName ? ' ' + s.sepName : '');
 
   const routeCache = new Map();
+  const entriesFrom = (o) => (o === ORIGIN ? ENTRIES : [{ name: o, pen: 0 }]);
   function routesTo(dest) {
-    if (routeCache.has(dest)) return routeCache.get(dest);
+    const o = origin();
+    const key = o + '|' + dest;
+    if (routeCache.has(key)) return routeCache.get(key);
     const out = [];
     if (!GROUPS.has(dest)) return out;
-    ENTRIES.forEach((en) => {
+    entriesFrom(o).forEach((en) => {
       if (!GROUPS.has(en.name)) return;
       if (en.name === dest) { out.push({ entry: en, segments: [], stops: 0, transfers: 0, cost: en.pen }); return; }
       const r = shortest(en.name, dest);
@@ -143,9 +147,9 @@
       });
     });
     out.sort((a, b) => a.cost - b.cost);
-    routeCache.set(dest, out);
+    routeCache.set(key, out);
     return out;
   }
 
-  Object.assign(C, { ENTRIES, STOP_MIN, TRANSFER, NODES, GROUPS, GROUP_LINE, groupOf, nodeOf, link, shortest, toSegments, segLabel, routeCache, routesTo });
+  Object.assign(C, { ENTRIES, STOP_MIN, TRANSFER, NODES, GROUPS, GROUP_LINE, groupOf, nodeOf, link, shortest, toSegments, segLabel, routeCache, entriesFrom, routesTo });
 })();

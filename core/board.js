@@ -3,7 +3,7 @@
   'use strict';
   const C = window.Core;
   const {
-    CURATED, $, esc, ACCESS, LINE, ORIGIN, isText, lineShort, label, ro, stationQuery, mapLinks,
+    CURATED, $, esc, ACCESS, LINE, ORIGIN, origin, openOriginPicker, isText, lineShort, label, ro, stationQuery, mapLinks,
     dotDate, on, state, segLabel, routesTo, stampWithFile, editSticker, stampPlain, unstamp,
   } = C;
 
@@ -13,7 +13,7 @@
 
   function legsHTML(r, dest) {
     const items = [];
-    if (r.entry.train) items.push(`<li class="leg"><span class="rb rb-train">${TRAIN_SVG}</span><div class="rt"><b>${ORIGIN} → ${esc(label(r.entry.name))}</b><span class="sub">${esc(r.entry.train)} <a href="https://www.letskorail.com" target="_blank" rel="noopener">열차 시각 확인</a></span></div></li>`);
+    if (r.entry.train) items.push(`<li class="leg"><span class="rb rb-train">${TRAIN_SVG}</span><div class="rt"><b>${esc(label(origin()))} → ${esc(label(r.entry.name))}</b><span class="sub">${esc(r.entry.train)} <a href="https://www.letskorail.com" target="_blank" rel="noopener">열차 시각 확인</a></span></div></li>`);
     r.segments.forEach((s, i) => {
       const L = LINE[s.line];
       const next = r.segments[i + 1];
@@ -35,9 +35,10 @@
       return `<li><b>${esc(label(r.entry.name))}</b>에서 시작, ${lines}, 환승 ${r.transfers}회, ${r.stops}정거장</li>`;
     }).join('');
     const summary = best.segments.length ? `환승 ${best.transfers}회, 지하철 ${best.stops}정거장` : best.entry.train ? '열차에서 바로 도착' : '출발역이에요';
-    return `<p class="route-sum">${esc(summary)}</p>${legsHTML(best, dest)}
+    const itx = rs.some((r) => r.entry.train);
+    return `<p class="route-sum">${esc(summary)}</p>${best.segments.length || best.entry.train ? legsHTML(best, dest) : ''}
       ${alts ? `<details class="alts"><summary>다른 경로 ${rs.length - 1}개</summary><ul>${alts}</ul></details>` : ''}
-      <p class="hint">정차역과 열차 시각은 바뀔 수 있어요. 타기 전에 코레일에서 확인하세요.</p>`;
+      ${itx ? '<p class="hint">정차역과 열차 시각은 바뀔 수 있어요. 타기 전에 코레일에서 확인하세요.</p>' : ''}`;
   }
 
   let infoEl = null;
@@ -79,7 +80,7 @@
 </div>
 <div class="info-grid">
   <section class="sect">
-    <h3>${ORIGIN}에서 ${esc(sq)}까지</h3>
+    <h3><button type="button" class="origin-btn" aria-haspopup="dialog" aria-label="출발역 바꾸기, 지금 ${esc(label(origin()))}">${esc(label(origin()))}<span aria-hidden="true">▾</span></button>에서 ${esc(sq)}까지</h3>
     ${routeHTML(name)}
   </section>
   <section class="sect">
@@ -89,6 +90,8 @@
   </section>
 </div>`;
 
+    const ob = $('.origin-btn', el);
+    ob.addEventListener('click', () => openOriginPicker(ob));
     const cam = $('.cam', el), shot = $('.shot', el), status = $('.status', el);
     cam.addEventListener('click', () => shot.click());
     shot.addEventListener('change', async () => {
@@ -130,6 +133,7 @@
     }));
   }
 
+  on('origin', () => { if (infoEl && infoCur) renderInfo(infoEl, infoCur); });
   on('stamps', (e) => {
     if (infoEl && infoCur && (e.bulk || !e.name || e.name === infoCur.name)) renderInfo(infoEl, infoCur);
   });

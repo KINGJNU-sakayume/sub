@@ -65,7 +65,7 @@
 
   /* ---------- 저장 ---------- */
   const KEY = 'metro-stamp:v2';
-  const state = { stamps: {}, unvisited: true, sound: true, voice: false, scope: 'seoul', lines: {}, cur: null };
+  const state = { stamps: {}, unvisited: true, sound: true, voice: false, scope: 'seoul', lines: {}, cur: null, origin: ORIGIN, recentOrigins: [] };
   try {
     const raw = localStorage.getItem(KEY);
     if (raw) {
@@ -90,6 +90,17 @@
     if (!c || !STATIONS.has(c.name)) return null;
     const lineN = STATIONS.get(c.name).lines.find((n) => String(n) === String(c.line));
     return lineN === undefined ? null : { name: c.name, line: lineN };
+  }
+  /* 출발역: 길 안내의 시작. 기본은 남춘천(ITX-청춘 경로 포함) */
+  const origin = () => (STATIONS.has(state.origin) ? state.origin : ORIGIN);
+  function setOrigin(name) {
+    if (!STATIONS.has(name)) return;
+    state.origin = name;
+    const rec = (Array.isArray(state.recentOrigins) ? state.recentOrigins : []).filter((n) => n !== name && n !== ORIGIN && STATIONS.has(n));
+    if (name !== ORIGIN) rec.unshift(name);
+    state.recentOrigins = rec.slice(0, 4);
+    save();
+    emit('origin', name);
   }
   function setCurrent(cur) {
     state.cur = cur ? { name: cur.name, line: cur.line } : null;
@@ -178,5 +189,5 @@
     window.addEventListener('load', () => { navigator.serviceWorker.register('sw.js').catch(() => {}); });
   }
 
-  Object.assign(C, { LINES, EN, CURATED, RENAMED, $, reduced, sleep, rand, enc, esc, REGION, ACCESS, LINE, ORIGIN, lineName, isText, lineShort, lineEn, label, ro, STATIONS, lineOrder, trackFor, neighbors, stationQuery, mapLinks, today, dotDate, handlers, on, emit, KEY, state, save, current, setCurrent, lineOn, inScope, activeLines, pool, renamedPhotos, DB, photosReady, urls, photoURL, dropURL });
+  Object.assign(C, { LINES, EN, CURATED, RENAMED, $, reduced, sleep, rand, enc, esc, REGION, ACCESS, LINE, ORIGIN, lineName, isText, lineShort, lineEn, label, ro, STATIONS, lineOrder, trackFor, neighbors, stationQuery, mapLinks, today, dotDate, handlers, on, emit, KEY, state, save, current, setCurrent, origin, setOrigin, lineOn, inScope, activeLines, pool, renamedPhotos, DB, photosReady, urls, photoURL, dropURL });
 })();
