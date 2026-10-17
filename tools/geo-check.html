@@ -102,8 +102,9 @@
     });
   }
 
-  /* 장소 이름 정리: 괄호 안과 공백을 빼고 비교해요. 예) "총신대입구(이수)역 4호선" → "총신대입구역4호선" */
-  const clean = (s) => String(s).replace(/\([^)]*\)/g, '').replace(/\s+/g, '');
+  /* 장소 이름에서 역 이름 부분만: 괄호 안을 빼고 첫 단어. 예) "총신대입구(이수)역 4호선" → "총신대입구역"
+     앞부분만 비교하면 "동대문역사문화공원역"이 "동대문역"에 걸려서 첫 단어 전체를 비교해요. */
+  const head = (s) => String(s).replace(/\([^)]*\)/g, '').trim().split(/\s+/)[0];
 
   function search(places, kind, arg, opts) {
     return new Promise((res) => {
@@ -118,8 +119,8 @@
     const q = query(name);
     const r = await search(places, 'keywordSearch', q, { category_group_code: 'SW8', location: loc, radius: 5000, sort: S.SortBy.DISTANCE });
     if (r.status === S.Status.ERROR) return { name, lines, old, error: true };
-    const named = r.data.filter((p) => clean(p.place_name).startsWith(q));
-    const onLine = named.filter((p) => lines.some((n) => clean(p.place_name).includes(n + '호선')));
+    const named = r.data.filter((p) => head(p.place_name) === q);
+    const onLine = named.filter((p) => lines.some((n) => p.place_name.includes(n + '호선')));
     const use = onLine.length ? onLine : named.slice(0, 1);
     if (!use.length) {
       const near = await search(places, 'categorySearch', 'SW8', { location: loc, radius: 800, sort: S.SortBy.DISTANCE });
