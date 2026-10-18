@@ -71,10 +71,10 @@
 
     el.innerHTML = `
 <div class="stampbar" style="--line:${L.color};--ink-on:${L.ink}">
-  <button type="button" class="cam" ${busyStamp ? 'disabled' : ''}>${CAM_SVG}<span>${stamp && stamp.p ? '사진 다시 찍기' : '사진으로 도장 찍기'}</span></button>
+  <button type="button" class="cam" ${busyStamp ? 'disabled' : ''}>${CAM_SVG}<span>${stamp && stamp.p ? '스티커 다시 만들기' : '사진으로 스티커 붙이기'}</span></button>
   <input type="file" class="shot" accept="image/*" capture="environment" hidden>
   <input type="file" class="pick" accept="image/*" hidden>
-  <span class="status" role="status">${stamp ? esc(dotDate(stamp.d)) + '에 다녀왔어요' : '출구나 역명판을 찍으면 스티커가 돼요'}</span>
+  <span class="status" role="status">${stamp ? esc(dotDate(stamp.d)) + '에 다녀왔어요' : '촬영하거나 앨범에서 고른 사진을 스티커로 남겨 보세요'}</span>
   <span class="stampopts">
     <button type="button" class="link-btn" data-act="pick">앨범에서 고르기</button>
     <button type="button" class="link-btn" data-act="paste">누끼 붙여넣기</button>
