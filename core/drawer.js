@@ -4,7 +4,7 @@
   const C = window.Core;
   const {
     LINES, $, reduced, esc, lineName, isText, lineShort, label, STATIONS, today, on, emit, state, save,
-    current, lineOn, inScope, activeLines, pool, photoURL, tts, unlockVoice, announce, exportJSON,
+    current, lineOn, LINE, photoURL, tts, unlockVoice, announce, exportJSON,
     importJSON, sealSVG, voiceName, dotDate, modal,
   } = C;
 
@@ -28,6 +28,11 @@
 <div class="drawer-body">
   <h3 class="sr" id="secBook" tabindex="-1">도장첩</h3>
   <p class="sum" id="drawerSum"></p>
+  <div class="station-search">
+    <label for="stationSearch">역 직접 찾기</label>
+    <input id="stationSearch" type="search" placeholder="역 이름 검색" autocomplete="off" spellcheck="false" aria-controls="stationMatches">
+    <div class="station-matches" id="stationMatches" role="region" aria-label="역 검색 결과" hidden></div>
+  </div>
   <div class="book" id="book"></div>
   <section class="settings">
     <h3 id="secSound" tabindex="-1">설정</h3>
@@ -115,15 +120,15 @@
     let bookTurn = 0;
     function renderBook() {
       const box = $('#book', dr);
-      const lines = activeLines().filter((L) => L.all.some(inScope));
+      const lines = LINES; // 도장첩은 뽑기 범위와 별개로 모든 역을 보여 줘요.
       if (!lines.length) { box.innerHTML = ''; return; }
       const cur = current();
       const pickN = [state.bookLine, cur && cur.line].find((n) => lines.some((L) => String(L.n) === String(n)));
       const L = lines.find((x) => String(x.n) === String(pickN)) || lines[0];
-      const all = L.all.filter(inScope);
-      const count = (x) => x.all.filter((n) => inScope(n) && state.stamps[n]).length;
+      const all = L.all;
+      const count = (x) => x.all.filter((n) => state.stamps[n]).length;
       const tabs = lines.map((x) => {
-        const total = x.all.filter(inScope).length;
+        const total = x.all.length;
         return `<button type="button" class="book-tab" data-line="${esc(x.n)}" aria-pressed="${x === L}" aria-label="${esc(lineName(x))}, 도장 ${count(x)} / ${total}">` +
           `<span class="rbadge${isText(x) ? ' txt' : ''}" style="background:${x.color};color:${x.ink}">${esc(lineShort(x))}</span><small>${count(x)}/${total}</small></button>`;
       }).join('');
@@ -136,7 +141,7 @@
       box.innerHTML = `<div class="book-tabs" role="group" aria-label="노선 고르기">${tabs}</div>
         <section class="book-page" data-line="${esc(L.n)}" style="--c:${L.color};--k:${L.ink}">
           <h3 class="book-title"><span class="rbadge${isText(L) ? ' txt' : ''}" style="background:${L.color};color:${L.ink}">${esc(lineShort(L))}</span>${esc(lineName(L))} 도장첩<span class="book-cnt">${count(L)} / ${all.length}</span></h3>
-          ${count(L) ? '' : '<p class="book-empty">이 노선은 아직 도장이 없어요. 역을 뽑고 다녀와서 도장을 찍으면 여기에 모여요.</p>'}
+          ${count(L) ? '' : '<p class="book-empty">이 노선은 아직 도장이 없어요. 뽑기로 떠나거나 다녀온 역을 찾아 스티커를 붙여 보세요.</p>'}
           <div class="book-grid">${slots}</div>
         </section>`;
       const on = $('.book-tab[aria-pressed="true"]', box);
@@ -150,6 +155,46 @@
         if (ring) ring.innerHTML = `<img src="${u}" alt="">`;
       });
     }
+    /* 역 직접 찾기: 추첨 범위·활성 노선과 무관하게 같은 도장첩으로 연결해요. */
+    const stationSearch = $('#stationSearch', dr);
+    const stationMatches = $('#stationMatches', dr);
+    function renderStationMatches() {
+      const q = stationSearch.value.trim().toLocaleLowerCase();
+      $('#book', dr).hidden = !!q;
+      stationMatches.hidden = !q;
+      if (!q) { stationMatches.replaceChildren(); return; }
+
+      const found = [...STATIONS.values()].filter((st) =>
+        st.label.toLocaleLowerCase().includes(q) || st.en.toLocaleLowerCase().includes(q));
+      found.sort((a, b) => {
+        const ap = a.label.toLocaleLowerCase().startsWith(q) ? 0 : 1;
+        const bp = b.label.toLocaleLowerCase().startsWith(q) ? 0 : 1;
+        return ap - bp || a.label.localeCompare(b.label, 'ko');
+      });
+      const hits = found.slice(0, 12).map((st) => {
+        const L = LINE[st.lines[0]];
+        const stamped = !!state.stamps[st.name];
+        return `<button type="button" class="station-hit" data-n="${esc(st.name)}" data-line="${esc(L.n)}">
+          <span class="lbadge${isText(L) ? ' txt' : ''}" style="background:${L.color};color:${L.ink}" aria-hidden="true">${esc(lineShort(L))}</span>
+          <span class="station-hit-name">${esc(st.label)}</span>
+          ${stamped ? '<small>도장 있음</small>' : ''}
+        </button>`;
+      }).join('');
+      stationMatches.innerHTML = `<p class="station-match-count">${found.length ? found.length + '개 역 찾음' + (found.length > 12 ? ' · 먼저 12개 표시' : '') : '일치하는 역이 없어요.'}</p>${hits}`;
+    }
+    stationSearch.addEventListener('input', renderStationMatches);
+    stationMatches.addEventListener('click', (e) => {
+      const hit = e.target.closest('.station-hit');
+      if (!hit) return;
+      const name = hit.dataset.n;
+      const st = STATIONS.get(name);
+      if (!st) return;
+      const line = st.lines.find((n) => String(n) === hit.dataset.line);
+      if (line === undefined) return;
+      close();
+      opts.onSelect(name, line);
+    });
+
     /* 바로가기: 긴 도장첩을 지나지 않고 설정·백업으로 */
     $('.drawer-nav', dr).addEventListener('click', (e) => {
       const go = e.target.closest('[data-go]');
@@ -172,15 +217,16 @@
     });
 
     function renderAll() {
-      const p = pool();
-      const done = [...p].filter((n) => state.stamps[n]).length;
-      $('#drawerSum', dr).textContent = '도장 ' + done + ' / ' + p.size + '역' + (p.size ? '' : ' · 설정에서 노선을 켜 주세요');
+      const done = [...STATIONS.keys()].filter((n) => state.stamps[n]).length;
+      $('#drawerSum', dr).textContent = '방문한 역 ' + done + ' / ' + STATIONS.size + '역';
       renderBook();
+      renderStationMatches();
     }
 
     function open() {
       if (isOpen) return;
       isOpen = true;
+      stationSearch.value = '';
       renderAll();
       paintVoice();
       scrim.hidden = false;
@@ -256,9 +302,8 @@
   /* 기록 버튼에 도장 수를 표시 */
   function bindCount(btn) {
     const paint = () => {
-      const p = pool();
-      const done = [...p].filter((n) => state.stamps[n]).length;
-      btn.textContent = '기록 ' + done + ' / ' + p.size;
+      const done = [...STATIONS.keys()].filter((n) => state.stamps[n]).length;
+      btn.textContent = '기록 ' + done + ' / ' + STATIONS.size;
     };
     paint();
     on('stamps', paint);

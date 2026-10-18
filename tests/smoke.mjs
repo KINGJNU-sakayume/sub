@@ -191,6 +191,39 @@ console.log('기록 서랍');
   await p.context().close();
 }
 
+console.log('직접 방문한 역도 하나의 도장첩에 저장');
+{
+  const p = await page(seed({ scope: 'seoul', lines: { ...ALL_LINES, 1: false } }));
+  await p.goto(BASE + 'index.html');
+  await p.click('#openRecord');
+  await p.fill('#stationSearch', '신창');
+  ok(await p.isVisible('.station-hit[data-n="신창"]'), '서울 범위 밖이면서 비활성화한 노선의 역도 찾을 수 있음');
+  await p.click('.station-hit[data-n="신창"]');
+  await p.waitForSelector('#board:not([hidden])');
+  ok((await p.textContent('#ko')) === '신창', '검색한 역이 바로 열림');
+  await p.click('[data-act="plain"]');
+  ok(await p.evaluate(() => {
+    const s = window.Core.state.stamps['신창'];
+    return !!s && Object.keys(s).sort().join(',') === 'd,l';
+  }), '별도 방문 유형 없이 기존 도장 저장 형식을 사용');
+  await p.click('#openRecord');
+  ok(/^방문한 역 1 \/ \d+역$/.test((await p.textContent('#drawerSum')).trim()), '방문 수는 뽑기 범위와 무관한 하나의 전체 집계');
+  await p.fill('#stationSearch', '신창');
+  ok(/도장 있음/.test(await p.textContent('.station-matches')), '직접 방문한 역도 기존 도장으로 인식');
+  await p.reload();
+  await p.click('#openRecord');
+  ok(/^방문한 역 1 \/ \d+역$/.test((await p.textContent('#drawerSum')).trim()), '새로고침 후 직접 방문 기록을 보존');
+  ok(await p.evaluate(() => {
+    const C = window.Core;
+    C.state.scope = 'all';
+    C.state.lines[1] = true;
+    const candidates = C.eligible().get(1);
+    return !!candidates && !candidates.includes('신창');
+  }), '도장 없는 역만 뽑기를 켜면 직접 방문한 역도 추첨에서 제외');
+  ok(!p.errors.length, '직접 방문 흐름에 자바스크립트 오류 없음' + (p.errors.length ? ': ' + p.errors[0] : ''));
+  await p.context().close();
+}
+
 console.log('저장 실패 알림');
 {
   /* 시드를 넣은 뒤 저장이 막힌 기기 (용량 초과 등) */
