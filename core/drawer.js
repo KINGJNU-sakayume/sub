@@ -302,9 +302,8 @@
   /* 기록 버튼에 도장 수를 표시 */
   function bindCount(btn) {
     const paint = () => {
-      const p = pool();
-      const done = [...p].filter((n) => state.stamps[n]).length;
-      btn.textContent = '기록 ' + done + ' / ' + p.size;
+      const done = [...STATIONS.keys()].filter((n) => state.stamps[n]).length;
+      btn.textContent = '기록 ' + done + ' / ' + STATIONS.size;
     };
     paint();
     on('stamps', paint);
