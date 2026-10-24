@@ -1,4 +1,4 @@
-/* 방안2: 지도 화면 */
+/* 지도 화면 */
 html, body { height: 100%; }
 body { display: flex; flex-direction: column; height: 100dvh; background: #f3f4f2; overflow: hidden; }
 .top { padding: 12px 20px; background: #f3f4f2; border-bottom: 1px solid #dfe2df; flex: none; }
@@ -42,7 +42,7 @@ body { display: flex; flex-direction: column; height: 100dvh; background: #f3f4f
 .panel-unfold {
   position: absolute; z-index: 600; top: 12px; right: 12px; max-width: calc(100% - 80px);
   padding: 9px 16px; font-size: .95rem; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  color: #fff; background: #23292d; border: 0; border-radius: 999px; box-shadow: 0 6px 18px rgba(20, 28, 34, .3); cursor: pointer;
+  color: #fff; background: var(--ink-strong); border: 0; border-radius: 999px; box-shadow: 0 6px 18px rgba(20, 28, 34, .3); cursor: pointer;
 }
 .panel-unfold:hover { background: #000; }
 .panel-unfold[hidden] { display: none; }

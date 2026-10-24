@@ -1,4 +1,4 @@
-/* 방안1: 역명판 화면 */
+/* 역명판 화면 */
 body {
   min-height: 100vh;
   min-height: 100dvh;
@@ -113,6 +113,11 @@ body::before {
   100% { transform: rotate(-7deg) scale(1); opacity: 1; }
 }
 
+/* 처음 왔을 때만 보이는 한 줄 안내. 역을 뽑거나 고르면 사라져요 */
+.lead { max-width: 30em; margin: 6px auto 0; text-align: center; font-size: .95rem; line-height: 1.6; color: var(--muted); }
+.lead[hidden] { display: none; }
+@media (pointer: coarse) { .kbd-only { display: none; } }
+.badge svg { display: block; width: calc(var(--s) * .5); height: calc(var(--s) * .5); }
 .controls { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 18px 30px; margin-top: 34px; }
 .board { margin-top: 28px; }
 
@@ -121,6 +126,9 @@ body::before {
   .core { grid-column: 1 / -1; grid-row: 1; justify-content: center; }
   .nb.prev { grid-column: 1; grid-row: 2; }
   .nb.next { grid-column: 2; grid-row: 2; }
-  .sticker { right: -6px; bottom: -14px; width: 84px; }
+  /* 환승 줄을 줄인 만큼(16px) 스티커도 내려서 이웃역 이름을 더 가리지 않게 해요 */
+  .sticker { right: -6px; bottom: -30px; width: 84px; }
+  /* 환승 줄 높이는 고정이지만 폰에선 빈 여백이 커 보여서 줄여요 (배지 28px + 아래 여백) */
+  .xfer { height: 40px; padding: 0 12px 12px; }
 }
 

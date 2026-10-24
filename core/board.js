@@ -71,16 +71,18 @@
 
     el.innerHTML = `
 <div class="stampbar" style="--line:${L.color};--ink-on:${L.ink}">
-  <button type="button" class="cam" ${busyStamp ? 'disabled' : ''}>${CAM_SVG}<span>${stamp && stamp.p ? '스티커 다시 만들기' : '사진으로 스티커 붙이기'}</span></button>
+  <span class="stamp-main">
+    <button type="button" class="cam" ${busyStamp ? 'disabled' : ''}>${CAM_SVG}<span>${stamp && stamp.p ? '스티커 다시 만들기' : '사진으로 스티커 붙이기'}</span></button>
+    <button type="button" class="ghost-btn" data-act="pick">앨범에서 고르기</button>
+  </span>
   <input type="file" class="shot" accept="image/*" capture="environment" hidden>
   <input type="file" class="pick" accept="image/*" hidden>
   <span class="status" role="status">${stamp ? esc(dotDate(stamp.d)) + '에 다녀왔어요' : '촬영하거나 앨범에서 고른 사진을 스티커로 남겨 보세요'}</span>
   <span class="stampopts">
-    <button type="button" class="link-btn" data-act="pick">앨범에서 고르기</button>
     <button type="button" class="link-btn" data-act="paste">누끼 붙여넣기</button>
     ${!stamp ? '<button type="button" class="link-btn" data-act="plain">사진 없이 도장만</button>' : ''}
     ${stamp ? '<button type="button" class="link-btn" data-act="card">도장 카드 공유</button>' : ''}
-    ${stamp ? '<button type="button" class="link-btn" data-act="clear">도장 지우기</button>' : ''}
+    ${stamp ? '<button type="button" class="link-btn danger" data-act="clear">도장 지우기</button>' : ''}
   </span>
 </div>
 <div class="info-grid">
@@ -169,7 +171,15 @@
         if (b.dataset.armed !== '1') {
           b.dataset.armed = '1';
           b.textContent = '정말 지울까요? 한 번 더';
-          setTimeout(() => { if (b.isConnected) { b.dataset.armed = ''; b.textContent = '도장 지우기'; } }, 3000);
+          /* 버튼 글자만 바뀌면 화면 낭독기는 모르니 상태 줄에도 적어요 */
+          const was = status.textContent;
+          status.textContent = '3초 안에 한 번 더 누르면 도장과 사진을 지워요';
+          setTimeout(() => {
+            if (!b.isConnected) return;
+            b.dataset.armed = '';
+            b.textContent = '도장 지우기';
+            if (status.textContent.startsWith('3초 안에')) status.textContent = was;
+          }, 3000);
           return;
         }
         await unstamp(name);

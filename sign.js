@@ -1,4 +1,4 @@
-/* 방안1: 역명판 화면 */
+/* 역명판 화면 */
 (() => {
   'use strict';
   const C = window.Core;
@@ -11,13 +11,15 @@
     prev: $('#prev'), prevName: $('#prevName'), next: $('#next'), nextName: $('#nextName'),
     xfer: $('#xfer'), draw: $('#draw'), board: $('#board'), note: $('#note'),
     live: $('#live'), unvisited: $('#unvisited'), sticker: $('#stickerSlot'),
+    lead: $('#lead'), record: $('#openRecord'),
   };
 
   function paintLine(n) {
     const L = n ? LINE[n] : null;
     D.sign.style.setProperty('--line', L ? L.color : '#2b3136');
     D.sign.style.setProperty('--ink-on', L ? L.ink : '#fff');
-    D.num.textContent = L ? C.lineShort(L) : '';
+    /* 아직 뽑기 전에는 빈 원 대신 열차 표시 */
+    if (L) D.num.textContent = C.lineShort(L); else D.num.innerHTML = C.TRAIN_SVG;
     D.badge.classList.toggle('txt', !!L && C.isText(L));
   }
   function slide(node, dur) {
@@ -120,9 +122,12 @@
     C.unlockVoice();
     D.draw.disabled = true;
     D.draw.textContent = '달리는 중';
+    /* 뽑는 동안 서랍에서 역을 고르면 무시돼서, 기록 버튼도 잠깐 막아요 */
+    D.record.disabled = true;
     const res = await C.draw({
       begin() {
         D.note.textContent = '';
+        D.lead.hidden = true;
         D.sign.dataset.state = 'rolling';
         D.board.hidden = true;
         D.sticker.replaceChildren();
@@ -138,6 +143,7 @@
     });
     busy = false;
     D.draw.disabled = false;
+    D.record.disabled = false;
     D.draw.textContent = '다시 뽑기';
     if (!res) {
       D.note.textContent = C.pool().size
@@ -153,6 +159,7 @@
     cur = { name, line: lineN };
     C.setCurrent(cur);
     D.sign.dataset.state = 'settled';
+    D.lead.hidden = true;
     showStation(name, lineN, 0);
     D.live.textContent = C.lineName(LINE[lineN]) + ' ' + C.stationQuery(name);
     C.renderInfo(D.board, cur);

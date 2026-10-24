@@ -238,11 +238,22 @@
   /* 열려 있는 동안 Tab은 창 안에서만 돌고, Escape로 닫고, 뒤 페이지는 스크롤되지 않아요.
      돌려준 함수로 풀면 창을 열었던 버튼으로 포커스가 돌아가요 */
   const FOCUSABLE = 'button:not([disabled]), a[href], input:not([hidden]):not([disabled]):not([type="hidden"]), select, textarea, summary, [tabindex]:not([tabindex="-1"])';
-  let locks = 0;
+  let locks = 0, lockY = 0;
+  /* iOS Safari는 overflow: hidden만으로는 뒤 페이지가 스크롤돼서, body를 제자리에 고정해 두고 풀 때 위치를 되돌려요 */
+  function lockScroll() {
+    lockY = window.scrollY;
+    document.body.style.top = -lockY + 'px';
+    document.documentElement.classList.add('locked');
+  }
+  function unlockScroll() {
+    document.documentElement.classList.remove('locked');
+    document.body.style.top = '';
+    window.scrollTo(0, lockY);
+  }
   function modal(box, close) {
     const back = document.activeElement;
+    if (!locks) lockScroll();
     locks++;
-    document.documentElement.classList.add('locked');
     const onKey = (e) => {
       if (e.key === 'Escape') { e.preventDefault(); close(); return; }
       if (e.key !== 'Tab') return;
@@ -259,8 +270,9 @@
       done = true;
       document.removeEventListener('keydown', onKey);
       locks = Math.max(0, locks - 1);
-      if (!locks) document.documentElement.classList.remove('locked');
-      if (back && back.isConnected && back.focus) back.focus();
+      if (!locks) unlockScroll();
+      /* 포커스를 돌려줄 때 그 버튼 쪽으로 페이지가 끌려가지 않게, 되돌린 스크롤 위치를 지켜요 */
+      if (back && back.isConnected && back.focus) back.focus({ preventScroll: true });
     };
   }
 

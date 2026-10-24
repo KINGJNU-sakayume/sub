@@ -37,7 +37,7 @@
     <circle cx="100" cy="100" r="93" stroke-width="5"/>
     <circle cx="100" cy="100" r="84" stroke-width="1.5"/>
     <circle cx="100" cy="100" r="59" stroke-width="1.5"/>
-    <text font-size="13" font-weight="800" fill="${color}" stroke="none" letter-spacing="2"><textPath href="#t${id}" startOffset="50%" text-anchor="middle">서울 지하철</textPath></text>
+    <text font-size="13" font-weight="800" fill="${color}" stroke="none" letter-spacing="2"><textPath href="#t${id}" startOffset="50%" text-anchor="middle">수도권 전철</textPath></text>
     <text font-size="13" font-weight="800" fill="${color}" stroke="none" letter-spacing="1"><textPath href="#b${id}" startOffset="50%" text-anchor="middle">${esc(dotDate(date))}</textPath></text>
     ${isText(L) ? `<rect x="70" y="51" width="60" height="26" rx="8" fill="${color}" stroke="none"/>` : `<circle cx="100" cy="64" r="14" fill="${color}" stroke="none"/>`}
     <text x="100" y="${(64 + tagSize * 0.36).toFixed(1)}" text-anchor="middle" font-size="${tagSize.toFixed(1)}" font-weight="800" fill="${L.ink === '#fff' ? '#fff' : L.ink}" stroke="none">${esc(tag)}</text>

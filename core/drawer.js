@@ -82,12 +82,16 @@
     if (!tts) voiceTry.hidden = true;
     /* 지금 쓰는 음성과, 더 자연스러운 음성을 받는 방법 */
     const voiceInfo = $('#voiceInfo', dr);
+    /* 아이폰·아이패드(데스크톱 모드 아이패드 포함)에만 설정 경로를 알려 줘요 */
+    const ios = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
     const paintVoice = () => {
       const n = tts ? voiceName() : '';
       if (!tts) { voiceInfo.textContent = '이 브라우저는 음성 안내를 지원하지 않아요.'; return; }
       voiceInfo.textContent = /premium|enhanced|프리미엄|향상/i.test(n)
         ? `지금 음성: ${n}. 향상된 음성을 쓰고 있어요.`
-        : `지금 음성: ${n || '기본'}. 아이폰 설정 › 손쉬운 사용 › 읽기 및 말하기 › 음성 › 한국어에서 '유나'의 향상된 음성을 내려받으면 훨씬 자연스러워요.`;
+        : ios
+          ? `지금 음성: ${n || '기본'}. 설정 › 손쉬운 사용 › 읽기 및 말하기 › 음성 › 한국어에서 '유나'의 향상된 음성을 내려받으면 훨씬 자연스러워요.`
+          : `지금 음성: ${n || '기본'}. 기기 설정에서 한국어 음성을 추가하면 더 자연스러워질 수 있어요.`;
     };
     if (tts && tts.addEventListener) tts.addEventListener('voiceschanged', paintVoice);
     voiceTry.addEventListener('click', () => {
@@ -247,7 +251,7 @@
       if (reduced) done(); else setTimeout(done, 260);
       if (release) release();
       release = null;
-      btn.focus();
+      btn.focus({ preventScroll: true });
     }
 
     btn.setAttribute('aria-haspopup', 'dialog');
