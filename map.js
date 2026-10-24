@@ -1,4 +1,4 @@
-/* 방안2: 지도 화면 (Leaflet + CARTO 타일) */
+/* 지도 화면 (Leaflet + CARTO 타일) */
 (() => {
   'use strict';
   const C = window.Core;
@@ -9,6 +9,7 @@
     draw: $('#draw'), note: $('#note'), live: $('#live'), unvisited: $('#unvisited'),
     panel: $('#panel'), head: $('#panelHead'), board: $('#board'), toggle: $('#panelToggle'),
     stage: $('.stage'), mapbox: $('.mapbox'), fold: $('#panelFold'), unfold: $('#panelUnfold'),
+    record: $('#openRecord'),
   };
 
   if (!window.L) { $('#maperr').hidden = false; D.draw.disabled = true; }
@@ -162,6 +163,7 @@
     C.unlockVoice();
     D.draw.disabled = true;
     D.draw.textContent = '달리는 중';
+    D.record.disabled = true;     // 뽑는 동안 서랍에서 고른 역은 무시되니 기록 버튼도 막아요
     let flashed = 0;
     const res = await C.draw({
       begin() {
@@ -192,6 +194,7 @@
     });
     busy = false;
     D.draw.disabled = false;
+    D.record.disabled = false;
     D.draw.textContent = '다시 뽑기';
     if (!res) {
       D.note.textContent = C.pool().size ? '이 범위의 역은 모두 도장을 찍었어요. 옵션을 끄거나 기록에서 노선을 더 켜 보세요.' : '뽑을 노선이 없어요. 기록 > 뽑기 범위에서 노선을 켜 주세요.';

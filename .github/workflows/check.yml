@@ -10,7 +10,8 @@ permissions:
 
 jobs:
   check:
-    runs-on: ubuntu-latest
+    # ubuntu-latest(26.04)에는 playwright@1.56.1이 Chromium을 설치하지 못해서, 지원하는 24.04로 고정해요
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
 

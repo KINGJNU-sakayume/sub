@@ -20,7 +20,8 @@
   }
   function option(name, note) {
     const on = name === origin();
-    return `<button type="button" class="or-opt" data-n="${esc(name)}" aria-pressed="${on}">` +
+    /* 하나만 고르는 목록이라 켜고 끄는 aria-pressed 대신, 지금 출발역에 aria-current를 달아요 */
+    return `<button type="button" class="or-opt" data-n="${esc(name)}"${on ? ' aria-current="true"' : ''}>` +
       `<span class="or-name">${esc(label(name))}${note ? `<small>${esc(note)}</small>` : ''}</span><span class="or-lines">${badges(name)}</span></button>`;
   }
 

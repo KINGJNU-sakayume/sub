@@ -29,7 +29,8 @@
 
   <main class="stage">
     <div class="mapbox">
-      <div id="map" role="application" aria-label="서울 지하철 노선 지도"></div>
+      <div id="map" role="application" aria-label="서울 지하철 노선 지도" aria-describedby="mapHelp"></div>
+      <p class="sr" id="mapHelp">지도의 역 점은 마우스나 터치로 골라요. 키보드로는 기록 버튼을 열어 역 직접 찾기에서 역을 고를 수 있어요.</p>
       <p class="maperr" id="maperr" hidden>지도를 불러오지 못했어요. 인터넷 연결을 확인하고 새로고침해 주세요.</p>
       <div class="dock">
         <button type="button" class="draw" id="draw">역 뽑기</button>
