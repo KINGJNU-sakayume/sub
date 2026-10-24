@@ -35,7 +35,7 @@
   </div>
   <div class="book" id="book"></div>
   <section class="settings">
-    <h3 id="secSound" tabindex="-1">설정</h3>
+    <h3 id="secSound" tabindex="-1">소리</h3>
     <label class="switch"><input type="checkbox" id="optSound"><span class="box" aria-hidden="true"></span><span>소리</span></label>
     <label class="switch"><input type="checkbox" id="optVoice"><span class="box" aria-hidden="true"></span><span>안내방송</span></label>
     <p class="hint" id="voiceInfo"></p>

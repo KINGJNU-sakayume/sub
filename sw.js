@@ -31,7 +31,7 @@ function staleWhileRevalidate(req, cacheName) {
     const fresh = fetch(req).then((res) => {
       if (res && (res.ok || res.type === 'opaque')) cache.put(req, res.clone());
       return res;
-    }).catch(() => hit);
+    }).catch(() => hit || Response.error());   // 오프라인이고 저장된 것도 없으면 오류 응답으로
     return hit || fresh;
   }));
 }

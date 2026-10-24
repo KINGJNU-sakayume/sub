@@ -26,7 +26,6 @@ body {
 }
 button { font: inherit; color: inherit; }
 :focus-visible { outline: 3px solid #1a73e8; outline-offset: 3px; }
-.board :focus-visible, .drawer :focus-visible { outline-color: #1a73e8; }
 .board :focus-visible { outline-color: var(--yellow); }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
@@ -423,8 +422,10 @@ html.locked, html.locked body { overflow: hidden; }
 .book { padding: 0 0 6px; }
 .book-tabs { display: flex; gap: 4px; overflow-x: auto; padding: 2px 22px 12px; scrollbar-width: none; }
 .book-tabs::-webkit-scrollbar { display: none; }
-.book-tab { flex: none; display: grid; justify-items: center; gap: 3px; padding: 4px; background: none; border: 0; border-radius: 10px; cursor: pointer; opacity: .5; }
-.book-tab[aria-pressed="true"] { opacity: 1; background: rgba(35, 41, 45, .06); }
+.book-tab { flex: none; display: grid; justify-items: center; gap: 3px; padding: 4px; background: none; border: 0; border-radius: 10px; cursor: pointer; }
+.book-tab[aria-pressed="true"] { background: rgba(35, 41, 45, .06); }
+/* 고르지 않은 탭은 배지만 흐리게: 도장 수 글자는 읽을 수 있는 대비를 지켜요 */
+.book-tab:not([aria-pressed="true"]) .rbadge { opacity: .5; }
 .book-tab .rbadge { --s: 32px; }
 .book-tab small { font-size: .7rem; font-weight: 700; color: var(--muted); font-variant-numeric: tabular-nums; }
 .book-page {
@@ -447,9 +448,8 @@ html.locked, html.locked body { overflow: hidden; }
 .slot-ring .seal { width: 108%; height: 108%; mix-blend-mode: multiply; transform: rotate(-6deg); }
 .slot-ring img { position: absolute; inset: 4%; width: 92%; height: 92%; object-fit: contain; transform: rotate(-6deg); filter: drop-shadow(0 2px 3px rgba(0, 0, 0, .25)); }
 .slot-name { font-size: .78rem; font-weight: 700; line-height: 1.2; color: #3a342a; overflow-wrap: anywhere; }
-.slot:not(.on) .slot-name { font-weight: 600; color: #a99d80; }
+.slot:not(.on) .slot-name { font-weight: 600; color: #7d7055; }
 .slot:focus-visible .slot-ring { outline: 3px solid #1a73e8; outline-offset: 2px; }
-
 
 /* 뽑기 설정과 무관하게 역을 찾는 보조 검색. 도장첩과 같은 서랍에서만 사용해요. */
 .station-search { margin: 0 22px 16px; }

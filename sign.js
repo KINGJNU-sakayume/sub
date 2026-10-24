@@ -173,7 +173,9 @@
   D.unvisited.addEventListener('change', () => { state.unvisited = D.unvisited.checked; C.save(); D.note.textContent = ''; });
   D.draw.addEventListener('click', onDraw);
   document.addEventListener('keydown', (e) => {
-    if (e.code === 'Space' && !e.target.closest('input, textarea, button, a, label, select, summary')) {
+    /* 창(서랍·출발역·스티커)이 열려 있으면 뒤에서 뽑기가 돌지 않게 해요 */
+    if (e.code === 'Space' && !e.repeat && !document.documentElement.classList.contains('locked')
+      && !e.target.closest('input, textarea, button, a, label, select, summary')) {
       e.preventDefault();
       onDraw();
     }
