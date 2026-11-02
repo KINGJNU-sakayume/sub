@@ -478,3 +478,29 @@ html.locked body { position: fixed; left: 0; right: 0; width: 100%; }   /* top�
 .station-hit .lbadge { --s: 26px; }
 .station-hit-name { flex: 1; min-width: 0; font-weight: 700; }
 .station-hit small { white-space: nowrap; color: var(--muted); }
+
+/* Life Hub 제안: 기록 버튼의 숫자 배지 */
+.rec-btn[data-hub] { position: relative; }
+.rec-btn[data-hub]::after {
+  content: attr(data-hub);
+  position: absolute;
+  top: -6px;
+  right: -4px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  font-size: .72rem;
+  font-weight: 800;
+  line-height: 18px;
+  text-align: center;
+  color: var(--ink-strong);
+  background: #ffd24a;
+  border-radius: 999px;
+  box-shadow: 0 0 0 2px #fff;
+}
+.hub-list { list-style: none; margin: 12px 0 0; padding: 0; }
+.hub-item { padding: 12px 0; border-top: 1px solid #e3e7e6; }
+.hub-what { margin: 0; font-size: .95rem; }
+.hub-choices { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 8px; }
+.hub-choice { display: inline-flex; align-items: center; gap: 6px; }
+.hub-choice small { color: var(--board-muted); }

@@ -11,7 +11,7 @@ const FILES = [
   'common.css', 'sign.css', 'map.css',
   'data.js', 'geo.js', 'access.js', 'sign.js', 'map.js',
   'core/base.js', 'core/sound.js', 'core/draw.js', 'core/route.js', 'core/sticker.js',
-  'core/backup.js', 'core/seal.js', 'core/origin.js', 'core/card.js', 'core/board.js', 'core/drawer.js',
+  'core/backup.js', 'core/seal.js', 'core/origin.js', 'core/card.js', 'core/board.js', 'core/lifehub.js', 'core/drawer.js',
   'icons/icon-180.png', 'icons/icon-192.png', 'icons/icon-512.png',
 ];
 
@@ -55,6 +55,7 @@ self.addEventListener('fetch', (e) => {
   const url = new URL(req.url);
   if (url.origin === self.location.origin) {
     if (url.pathname.includes('/tools/')) return;          // 관리 도구는 늘 새로
+    if (url.pathname.includes('/lifehub/')) return;        // Life Hub 연결 마무리 페이지는 늘 새로
     if (req.mode === 'navigate') {
       e.respondWith(staleWhileRevalidate(req, APP).then((r) => r || caches.match('index.html')));
       return;

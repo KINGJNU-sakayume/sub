@@ -23,7 +23,7 @@
     dr.innerHTML = `
 <div class="drawer-head"><h2 id="drawerTitle">도장 기록</h2><button type="button" class="x" aria-label="닫기">닫기</button></div>
 <nav class="drawer-nav" aria-label="기록 바로가기">
-  <button type="button" data-go="secBook">도장첩</button><button type="button" data-go="secSound">소리</button><button type="button" data-go="secScope">뽑기 범위</button><button type="button" data-go="secBackup">백업</button>
+  <button type="button" data-go="secBook">도장첩</button><button type="button" data-go="secSound">소리</button><button type="button" data-go="secScope">뽑기 범위</button><button type="button" data-go="secHub">Life Hub</button><button type="button" data-go="secBackup">백업</button>
 </nav>
 <div class="drawer-body">
   <h3 class="sr" id="secBook" tabindex="-1">도장첩</h3>
@@ -52,6 +52,10 @@
       <legend>뽑기에 넣을 노선</legend>
     </fieldset>
     <p class="hint">끈 노선과 범위 밖 역의 도장도 지워지지 않고 남아요. 길 안내는 모든 노선으로 찾아요.</p>
+  </section>
+  <section class="settings">
+    <h3 id="secHub" tabindex="-1">Life Hub 제안</h3>
+    <div id="lifehubBox"></div>
   </section>
   <section class="settings">
     <h3 id="secBackup" tabindex="-1">백업</h3>
@@ -200,13 +204,15 @@
     });
 
     /* 바로가기: 긴 도장첩을 지나지 않고 설정·백업으로 */
-    $('.drawer-nav', dr).addEventListener('click', (e) => {
-      const go = e.target.closest('[data-go]');
-      if (!go) return;
-      const h = $('#' + go.dataset.go, dr), body = $('.drawer-body', dr);
-      const top = go.dataset.go === 'secBook' ? 0 : h.getBoundingClientRect().top - body.getBoundingClientRect().top + body.scrollTop - 14;
+    function goTo(id) {
+      const h = $('#' + id, dr), body = $('.drawer-body', dr);
+      const top = id === 'secBook' ? 0 : h.getBoundingClientRect().top - body.getBoundingClientRect().top + body.scrollTop - 14;
       body.scrollTo({ top, behavior: reduced ? 'auto' : 'smooth' });
       h.focus({ preventScroll: true });
+    }
+    $('.drawer-nav', dr).addEventListener('click', (e) => {
+      const go = e.target.closest('[data-go]');
+      if (go) goTo(go.dataset.go);
     });
     dr.addEventListener('click', (e) => {
       const tab = e.target.closest('.book-tab');
@@ -261,6 +267,13 @@
     scrim.addEventListener('click', close);
     on('stamps', () => { if (isOpen) renderAll(); });
     on('settings', () => { if (isOpen) renderAll(); });
+    /* Life Hub 제안 (core/lifehub.js가 있을 때만) */
+    if (C.mountLifeHub) {
+      C.mountLifeHub($('#lifehubBox', dr), {
+        button: btn, close, onSelect: opts.onSelect,
+        openAt: () => { open(); requestAnimationFrame(() => goTo('secHub')); },
+      });
+    }
 
     $('#export', dr).addEventListener('click', async () => {
       const note = $('#backupNote', dr);

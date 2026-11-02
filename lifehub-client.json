@@ -1,0 +1,9 @@
+{
+  "client_id": "https://kingjnu-sakayume.github.io/sub/lifehub-client.json",
+  "client_name": "역 도장깨기",
+  "client_uri": "https://kingjnu-sakayume.github.io/sub/",
+  "redirect_uris": ["https://kingjnu-sakayume.github.io/sub/lifehub/"],
+  "grant_types": ["authorization_code", "refresh_token"],
+  "response_types": ["code"],
+  "token_endpoint_auth_method": "none"
+}

@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<meta name="referrer" content="no-referrer">
+<title>역 도장깨기 · Life Hub</title>
+</head>
+<body>
+<p>Life Hub 연결을 마무리하는 중…</p>
+<script>
+  // Life Hub가 여기로 돌아와요. 한 번 쓰는 결과를 이 탭의 sessionStorage에 넘기고, 주소에서 지운 뒤 역명판을 열어요.
+  try { sessionStorage.setItem('metro-stamp.lifehub.callback.v1', location.search); } catch (e) { /* 앱이 알려요 */ }
+  location.replace(new URL('../index.html', location.href).href);
+</script>
+</body>
+</html>
