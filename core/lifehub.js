@@ -213,12 +213,7 @@
 
   function mountLifeHub(box, opts) {
     const deps = browserDeps();
-    const hint = document.createElement('button');
-    hint.type = 'button';
-    hint.className = 'hub-hint';
-    hint.hidden = true;
-    opts.button.after(hint);
-    hint.addEventListener('click', () => opts.openAt());
+    const navBtn = box.closest('.drawer') && box.closest('.drawer').querySelector('[data-go="secHub"]');
 
     async function runSync() {
       if (!isConnected(deps)) { paint(); return; }
@@ -235,9 +230,11 @@
 
     function paint() {
       const connected = isConnected(deps);
-      hint.hidden = proposals.length === 0;
-      hint.textContent = '제안 ' + proposals.length;
-      hint.setAttribute('aria-label', 'Claude가 제안한 역 방문 ' + proposals.length + '개 보기');
+      /* 기록 버튼에 작은 숫자 배지, 서랍 바로가기에 개수 */
+      const n = proposals.length;
+      if (n) { opts.button.dataset.hub = String(n); opts.button.title = 'Claude가 제안한 역 방문 ' + n + '개'; }
+      else { delete opts.button.dataset.hub; opts.button.removeAttribute('title'); }
+      if (navBtn) navBtn.textContent = n ? 'Life Hub ' + n : 'Life Hub';
       const rows = proposals.map((p) => {
         const { choices, exact } = findStations(p);
         const pickName = 'hub-' + p.key.replace(/[^A-Za-z0-9]/g, '');
