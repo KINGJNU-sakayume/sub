@@ -391,6 +391,54 @@ console.log('Life Hub 제안 (네트워크는 가짜 응답)');
   await p.context().close();
 }
 
+console.log('Life Hub 카드 승인 (네트워크는 가짜 응답)');
+{
+  const tokens = { access_token: 'access-synthetic', refresh_token: 'refresh-synthetic', access_expires_at: Date.now() + 3600e3 };
+  const p = await page(seed({ stamps: {} }), {
+    init: `localStorage.setItem('metro-stamp.lifehub.tokens.v1', ${JSON.stringify(JSON.stringify(tokens))});`,
+  });
+  const todayStr = new Date().toLocaleDateString('sv-SE');
+  const item = (key, type, payload, status = 'approved') => ({ key: 'claude:' + key, status, revision: 0, final_candidate: null, needs_app_review: false,
+    candidate: { schema_version: 1, candidate_type: type, source: 'claude', idempotency_key: key, created_at: '2026-11-01T0' + key.slice(-1) + ':00:00Z', payload } });
+  const list = [
+    item('mcp-' + 'c'.repeat(39) + '1', 'station_visit', { station: '망원역', date: '2026-10-31' }),
+    item('mcp-' + 'd'.repeat(39) + '2', 'station_visit', { station: '신촌', date: '2026-10-30' }),
+    item('mcp-' + 'e'.repeat(39) + '3', 'station_draw', { date: '2020-01-01', line: '1호선', station: '시청' }),
+    item('mcp-' + 'f'.repeat(39) + '4', 'station_draw', { date: todayStr, line: '1호선', station: '시청' }),
+  ];
+  const posted = [], puts = {};
+  await p.context().route(/life-hub-api\.213303\.workers\.dev/, async (r) => {
+    const req = r.request();
+    const cors = { 'access-control-allow-origin': '*', 'access-control-allow-headers': 'authorization, content-type', 'access-control-allow-methods': 'GET, POST, PUT' };
+    if (req.method() === 'OPTIONS') return r.fulfill({ status: 204, headers: cors });
+    if (req.method() === 'PUT') { const b = JSON.parse(req.postData() || '{}'); puts[new URL(req.url()).pathname.split('/').pop()] = b; return r.fulfill({ status: 200, headers: cors, contentType: 'application/json', body: '{}' }); }
+    if (req.method() === 'POST') { const b = JSON.parse(req.postData() || '{}'); posted.push(b); return r.fulfill({ status: 200, headers: cors, contentType: 'application/json', body: '{}' }); }
+    const done = new Set(posted.map((b) => b.key));
+    return r.fulfill({ status: 200, headers: cors, contentType: 'application/json', body: JSON.stringify({ candidates: list.filter((c) => !done.has(c.key)) }) });
+  });
+  await p.goto(BASE + 'index.html');
+  await p.waitForFunction(() => { const s = JSON.parse(localStorage.getItem('metro-stamp:v2') || '{}'); return s.stamps && s.stamps['망원'] && s.cur; });
+  const saved = await p.evaluate(() => JSON.parse(localStorage.getItem('metro-stamp:v2')));
+  ok(saved.stamps['망원'].d === '2026-10-31', '카드에서 승인한 방문은 역이 하나로 정해지면 바로 도장');
+  ok(!saved.stamps['신촌'] && !saved.stamps['신촌(경의중앙)'], '이름이 둘로 갈리는 방문(신촌)은 찍지 않음');
+  ok(saved.cur && saved.cur.name === '시청' && String(saved.cur.line) === '1', '오늘 승인한 뽑기는 지금 목표 역이 됨');
+  await p.waitForFunction(() => /시청/.test(document.querySelector('#sign, .sign, main').textContent));
+  ok(true, '역명판에 목표 역이 보임');
+  await p.waitForFunction(() => document.querySelector('#openRecord') && document.querySelector('#openRecord').dataset.hub === '1');
+  ok(posted.some((b) => b.key.endsWith('1') && b.entity_type === 'station_visit'), '도장 결과를 Life Hub에 보냄');
+  ok(posted.some((b) => b.key.endsWith('4') && b.entity_type === 'station_draw' && /^cur_[A-Za-z0-9_-]+$/.test(b.entity_id)), '목표 역 결과를 Life Hub에 보냄');
+  ok(posted.some((b) => b.key.endsWith('3') && !b.entity_type), '지난 날짜의 뽑기는 거절로 알림');
+  ok(puts.lines && puts.lines.items.length === 16 && puts.stations && puts.stations.items.length > 600, '노선·역 목록을 공유');
+  ok(puts.pool && puts.pool.items.length > 100 && !puts.pool.items.some((x) => x.label === '망원'), '뽑을 수 있는 역(안 간 역만)을 공유');
+  await p.click('#openRecord');
+  await p.waitForSelector('.drawer.on');
+  await p.click('[data-go="secHub"]');
+  ok(/Claude 카드에서 승인함/.test(await p.textContent('#lifehubBox')), '남은 제안에 카드 승인 표시');
+  ok(await p.isChecked('#lifehubBox [data-act="auto"]'), '자동 반영 설정이 기본으로 켜져 있음');
+  ok(!p.errors.length, '자바스크립트 오류 없음' + (p.errors.length ? ': ' + p.errors[0] : ''));
+  await p.context().close();
+}
+
 await browser.close();
 console.log(failed ? `\n실패 ${failed}개` : '\n모두 통과');
 process.exit(failed ? 1 : 0);
