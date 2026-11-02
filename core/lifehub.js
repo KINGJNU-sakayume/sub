@@ -2,11 +2,15 @@
    - 연결: OAuth 2.1 인증 코드 + PKCE(S256). 이 페이지는 lifehub-client.json으로 자신을 밝히는 공개 클라이언트이고
      `sub:inbox` 권한만 받아요. Life Hub는 lifehub/ 페이지로 돌아오고, 그 페이지가 결과를 이 탭에 넘겨요.
    - 제안(`station_visit`)은 받아 올 때마다 형식을 다시 검사해요. 승인해야 도장이 찍혀요(뽑기만으로는 찍지 않는 원칙 그대로).
-   - 승인·거절 결과는 이 기기에 적어 두고, 동기화할 때 Life Hub에 알려요(응답이 올 때까지 다시 보내요). */
+   - 승인·거절 결과는 이 기기에 적어 두고, 동기화할 때 Life Hub에 알려요(응답이 올 때까지 다시 보내요).
+   - Claude 대화 카드(Life Hub 카드 5단계): 카드에서 승인한 방문은 역이 하나로 정해질 때, 「여기 갈래요」를 누른 뽑기는
+     오늘 날짜이고 지금도 뽑을 수 있는 역일 때 바로 반영해요(설정 「Claude에서 승인된 항목 자동 반영」, 기본 켜짐).
+   - 카드와 허브 뽑기를 위해 노선·역 목록과 지금 뽑을 수 있는 역(뽑기 범위·안 간 역 설정 반영)을 Life Hub에 공유해요. */
 (() => {
   'use strict';
   const C = window.Core;
-  const { esc, label, STATIONS, LINE, lineName, isText, lineShort, state, save, emit, on, validDate, dotDate, RENAMED } = C;
+  const { esc, label, STATIONS, LINE, lineName, isText, lineShort, state, save, emit, on, validDate, dotDate, RENAMED, today } = C;
+  const eligibleNow = () => (C.eligible ? C.eligible() : new Map());
 
   const LIFEHUB_ORIGIN = 'https://life-hub-api.213303.workers.dev';
   const APP_URL = 'https://kingjnu-sakayume.github.io/sub/';
@@ -21,8 +25,11 @@
   const OUTCOMES_KEY = 'metro-stamp.lifehub.outcomes.v1';
   const REJECTIONS_KEY = 'metro-stamp.lifehub.rejections.v1';
   const RECEIPTS_KEY = 'metro-stamp.lifehub.receipts.v1';
+  const AUTO_KEY = 'metro-stamp.lifehub.auto-apply.v1';
+  const REFS_KEY = 'metro-stamp.lifehub.refs.v1';
+  const LISTS_REVISION = 1;   // 노선·역 목록(data.js)이 바뀌면 올려요
   const AUTH_MAX_AGE_MS = 10 * 60 * 1000;
-  const KEY = /^(claude|chatgpt|manual):[A-Za-z0-9_.:-]{8,128}$/;
+  const KEY = /^(claude|chatgpt|codex|manual):[A-Za-z0-9_.:-]{8,128}$/;
 
   class LifeHubError extends Error {
     constructor(kind, message) { super(message); this.kind = kind; }   // not_connected | denied | state | network | server
@@ -43,14 +50,22 @@
   const only = (v, keys) => Object.keys(v).every((k) => keys.includes(k));
   const text = (v, max) => typeof v === 'string' && v.trim().length > 0 && v.length <= max;
   const optText = (v, max) => v === undefined || text(v, max);
+  /* 카드에서 고친 내용(final_candidate)이 있으면 그걸 써요. status 'approved' = 카드에서 승인함(아직 반영 전) */
   function parseProposal(item) {
-    if (!isObj(item) || typeof item.key !== 'string' || !KEY.test(item.key) || !isObj(item.candidate)) return null;
-    const c = item.candidate;
-    if (c.schema_version !== 1 || c.candidate_type !== 'station_visit' || typeof c.source !== 'string' ||
+    if (!isObj(item) || typeof item.key !== 'string' || !KEY.test(item.key)) return null;
+    if (item.status !== undefined && item.status !== 'pending' && item.status !== 'approved') return null;
+    const c = item.final_candidate || item.candidate;
+    if (!isObj(c) || c.schema_version !== 1 || typeof c.source !== 'string' ||
       `${c.source}:${String(c.idempotency_key)}` !== item.key || typeof c.created_at !== 'string' || !isObj(c.payload)) return null;
     const p = c.payload;
+    const base = { key: item.key, createdAt: c.created_at, status: item.status === 'approved' ? 'approved' : 'pending', needsAppReview: item.needs_app_review === true };
+    if (c.candidate_type === 'station_draw') {
+      if (!only(p, ['date', 'line', 'station']) || !validDate(p.date) || !text(p.line, 20) || !text(p.station, 40)) return null;
+      return { ...base, kind: 'draw', station: p.station.trim(), line: p.line.trim(), date: p.date };
+    }
+    if (c.candidate_type !== 'station_visit') return null;
     if (!only(p, ['station', 'line', 'date', 'note']) || !text(p.station, 40) || !optText(p.line, 20) || !validDate(p.date) || !optText(p.note, 300)) return null;
-    return { key: item.key, station: p.station.trim(), line: p.line ? p.line.trim() : null, date: p.date, note: p.note ? p.note.trim() : null };
+    return { ...base, kind: 'visit', station: p.station.trim(), line: p.line ? p.line.trim() : null, date: p.date, note: p.note ? p.note.trim() : null };
   }
 
   /* ---------- 역 찾기: 하나로 맞을 때만 고르고, 나머지는 고르게 해요 ---------- */
@@ -78,6 +93,61 @@
     return st.lines[0];
   }
   const entityIdFor = (stationKey) => 'st_' + b64url(new TextEncoder().encode(stationKey));
+  const drawIdFor = (stationKey) => 'cur_' + b64url(new TextEncoder().encode(stationKey));
+
+  /* ---------- 카드에서 승인한 항목 ---------- */
+  const autoApplyEnabled = (deps) => deps.storage.getItem(AUTO_KEY) !== 'off';
+  const setAutoApply = (deps, on) => { if (on) deps.storage.removeItem(AUTO_KEY); else deps.storage.setItem(AUTO_KEY, 'off'); };
+  /** 뽑기 제안의 노선 이름 → 노선 번호 (지금 뽑을 수 있는 역이 아니면 null) */
+  function drawTarget(p, eligible) {
+    const L = C.LINES.find((x) => lineName(x) === p.line);
+    if (!L || !STATIONS.has(p.station)) return null;
+    const list = eligible.get(L.n);
+    return list && list.includes(p.station) ? L.n : null;
+  }
+  /**
+   * 기다리지 않고 반영할 것: [{ kind: 'stamp', p, station, lineN } | { kind: 'go', p, station, lineN } | { kind: 'reject', p }].
+   * 방문: 카드에서 승인, 다시 확인 요청 없음, 설정 켜짐, 역이 하나로 정해짐. 뽑기: 가장 최근에 승인한 것 하나만,
+   * 오늘 날짜이고 지금도 뽑을 수 있으면 목표 역으로, 아니면(지난 날짜·이미 도장·범위 밖·더 새 뽑기가 있음) 거절해요.
+   */
+  function autoPlan(proposals, deps, todayStr, eligible) {
+    if (!autoApplyEnabled(deps)) return [];
+    const out = [];
+    const ready = proposals.filter((p) => p.status === 'approved' && !p.needsAppReview);
+    ready.filter((p) => p.kind === 'visit').forEach((p) => {
+      const { exact } = findStations(p);
+      if (exact) out.push({ kind: 'stamp', p, station: exact.name, lineN: lineFor(exact, p) });
+    });
+    const draws = ready.filter((p) => p.kind === 'draw').sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+    draws.forEach((p, i) => {
+      const lineN = i === 0 && p.date === todayStr ? drawTarget(p, eligible) : null;
+      out.push(lineN === null ? { kind: 'reject', p } : { kind: 'go', p, station: p.station, lineN });
+    });
+    return out;
+  }
+
+  /* ---------- Life Hub에 공유하는 목록 (기록은 보내지 않아요) ---------- */
+  function lineRefs() { return C.LINES.map((L) => ({ id: String(L.n), label: lineName(L), group: L.color })); }
+  function stationRefs(byLine) {
+    const out = [];
+    C.LINES.forEach((L) => { (byLine ? byLine.get(L.n) || [] : L.all).forEach((name, i) => out.push({ id: L.n + '.' + i, label: name, group: lineName(L) })); });
+    return out;
+  }
+  /** 노선·역 목록은 판마다 한 번, 뽑을 수 있는 역은 바뀔 때만 올려요. 409 = 더 새 목록이 이미 있음 */
+  async function uploadRefs(deps, eligible) {
+    const sent = readJson(deps.storage, REFS_KEY) || {};
+    const put = async (kind, revision, items) => {
+      const res = await api(deps, 'PUT', '/refs/' + kind, { revision, items });
+      return res.ok || res.status === 409;
+    };
+    if (sent.lists !== LISTS_REVISION && await put('lines', LISTS_REVISION, lineRefs()) && await put('stations', LISTS_REVISION, stationRefs(null))) sent.lists = LISTS_REVISION;
+    const pool = stationRefs(eligible), body = JSON.stringify(pool);
+    if (sent.poolBody !== body) {
+      const revision = Math.max(deps.now(), (sent.poolRevision || 0) + 1);
+      if (await put('pool', revision, pool)) { sent.poolBody = body; sent.poolRevision = revision; }
+    }
+    deps.storage.setItem(REFS_KEY, JSON.stringify(sent));
+  }
 
   /* ---------- OAuth ---------- */
   const isConnected = (deps) => typeof (readJson(deps.storage, TOKENS_KEY) || {}).refresh_token === 'string';
@@ -159,7 +229,7 @@
     map[key] = entityId;
     deps.storage.setItem(RECEIPTS_KEY, JSON.stringify(map));
   }
-  async function sync(deps) {
+  async function sync(deps, eligible) {
     const done = readJson(deps.storage, OUTCOMES_KEY) || {};
     const result = { proposals: [], receiptsSent: 0, rejectionsSent: 0, conflicts: 0, waiting: 0 };
     const record = (key, res, ok) => {
@@ -173,14 +243,16 @@
       if (!KEY.test(key) || !/^[A-Za-z0-9_-]{1,128}$/.test(entityId)) continue;
       decided.add(key);
       if (done[key]) continue;
-      if (record(key, await api(deps, 'POST', '/receipts', { key, entity_type: 'station_visit', entity_id: entityId }), 'confirmed')) result.receiptsSent++;
+      const type = entityId.startsWith('cur_') ? 'station_draw' : 'station_visit';
+      if (record(key, await api(deps, 'POST', '/receipts', { key, entity_type: type, entity_id: entityId }), 'confirmed')) result.receiptsSent++;
     }
     for (const key of readJson(deps.storage, REJECTIONS_KEY) || []) {
       decided.add(key);
       if (done[key]) continue;
       if (record(key, await api(deps, 'POST', '/rejections', { key }), 'rejected')) result.rejectionsSent++;
     }
-    const res = await api(deps, 'GET', '/candidates?status=pending&limit=100');
+    if (eligible) await uploadRefs(deps, eligible).catch(() => {});
+    const res = await api(deps, 'GET', '/candidates?status=open&limit=100');
     if (!res.ok) throw new LifeHubError('server', `Life Hub 제안을 가져오지 못했어요 (${res.status})`);
     const body = await res.json().catch(() => null);
     if (!body || !Array.isArray(body.candidates)) throw new LifeHubError('server', 'Life Hub 응답 형식이 올바르지 않아요.');
@@ -215,12 +287,35 @@
     const deps = browserDeps();
     const navBtn = box.closest('.drawer') && box.closest('.drawer').querySelector('[data-go="secHub"]');
 
+    /** 카드에서 승인한 것 중 더 정할 게 없는 것을 반영해요. 반영했으면 true */
+    function applyApproved() {
+      let changed = false;
+      for (const a of autoPlan(proposals, deps, today(), eligibleNow())) {
+        if (a.kind === 'reject') rejectLocally(a.p.key, deps);
+        else if (a.kind === 'stamp') {
+          const r = stampFromProposal(a.p, a.station, a.lineN);
+          if (!r.ok) continue;
+          rememberReceipt(a.p.key, entityIdFor(a.station), deps);
+          message = r.existed ? `${label(a.station)}역은 이미 도장이 있어서 그대로 뒀어요.` : `Claude에서 승인한 ${label(a.station)}역에 ${dotDate(a.p.date)} 도장을 찍었어요.`;
+        } else {
+          if (opts.onSelect) opts.onSelect(a.station, a.lineN); else C.setCurrent({ name: a.station, line: a.lineN });
+          rememberReceipt(a.p.key, drawIdFor(a.station), deps);
+          message = `Claude에서 뽑은 ${label(a.station)}역을 지금 목표 역으로 정했어요.`;
+        }
+        proposals = proposals.filter((x) => x.key !== a.p.key);
+        changed = true;
+      }
+      return changed;
+    }
+
     async function runSync() {
       if (!isConnected(deps)) { paint(); return; }
       syncing = true; paint();
       try {
-        const r = await sync(deps);
+        let r = await sync(deps, eligibleNow());
         proposals = r.proposals;
+        // 반영한 결과(도장·목표 역)를 바로 알리고, 바뀐 뽑기 가능 역도 함께 올려요.
+        if (applyApproved()) { r = await sync(deps, eligibleNow()); proposals = r.proposals; }
         if (r.conflicts) message = `${r.conflicts}개 제안은 Life Hub와 상태가 달라요. 도장첩은 그대로예요.`;
       } catch (e) {
         if (e.kind === 'not_connected') proposals = [];
@@ -236,6 +331,19 @@
       else { delete opts.button.dataset.hub; opts.button.removeAttribute('title'); }
       if (navBtn) navBtn.textContent = n ? 'Life Hub ' + n : 'Life Hub';
       const rows = proposals.map((p) => {
+        const approvedNote = p.status === 'approved' ? `<p class="hint">Claude 카드에서 승인함${p.needsAppReview ? ' · 여기서 역을 골라 주세요' : ''}</p>` : '';
+        if (p.kind === 'draw') {
+          const L = C.LINES.find((x) => lineName(x) === p.line);
+          const ok = !!drawTarget(p, eligibleNow()) && p.date === today();
+          return `<li class="hub-item" data-key="${esc(p.key)}">
+  <p class="hub-what">${L ? badge(L) + ' ' : ''}<strong>${esc(label(p.station))}</strong> · Claude가 뽑은 역 · ${esc(dotDate(p.date))}</p>${approvedNote}
+  ${ok ? '' : '<p class="hint">지금 설정으로는 뽑을 수 없는 역이거나 지난 뽑기예요.</p>'}
+  <div class="backup-actions">
+    <button type="button" class="pill" data-act="go"${ok ? '' : ' disabled'}>목표로 정하기</button>
+    <button type="button" class="pill" data-act="reject">거절</button>
+  </div>
+</li>`;
+        }
         const { choices, exact } = findStations(p);
         const pickName = 'hub-' + p.key.replace(/[^A-Za-z0-9]/g, '');
         const options = choices.map((st) => {
@@ -244,7 +352,7 @@
         }).join('');
         return `<li class="hub-item" data-key="${esc(p.key)}">
   <p class="hub-what"><strong>${esc(p.station)}</strong>${p.line ? ' · ' + esc(p.line) : ''} · ${esc(dotDate(p.date))}</p>
-  ${p.note ? `<p class="hint">“${esc(p.note)}”</p>` : ''}
+  ${p.note ? `<p class="hint">“${esc(p.note)}”</p>` : ''}${approvedNote}
   ${choices.length ? `<div class="hub-choices">${options}</div>` : '<p class="hint">이 이름의 역을 찾지 못했어요. 맞지 않으면 거절해 주세요.</p>'}
   <div class="backup-actions">
     <button type="button" class="pill" data-act="stamp"${choices.length ? '' : ' disabled'}>도장 찍기</button>
@@ -254,7 +362,8 @@
       }).join('');
       box.innerHTML = `
 <p class="hint">Claude에게 다녀온 역을 말하면 여기에 제안으로 와요. 확인하고 「도장 찍기」를 눌러야 기록돼요. 사진 스티커는 찍은 뒤 그 역을 열어 붙일 수 있어요.</p>
-${connected ? `<div class="backup-actions"><button type="button" class="pill" data-act="sync"${syncing ? ' disabled' : ''}>${syncing ? '동기화 중…' : '지금 동기화'}</button><button type="button" class="pill" data-act="disconnect">연결 해제</button></div>`
+${connected ? `<div class="backup-actions"><button type="button" class="pill" data-act="sync"${syncing ? ' disabled' : ''}>${syncing ? '동기화 중…' : '지금 동기화'}</button><button type="button" class="pill" data-act="disconnect">연결 해제</button></div>
+<label class="switch"><input type="checkbox" data-act="auto"${autoApplyEnabled(deps) ? ' checked' : ''}><span class="box" aria-hidden="true"></span><span>Claude에서 승인된 항목 자동 반영</span></label>`
     : `<div class="backup-actions"><button type="button" class="pill" data-act="connect"${connectAvailable(location) ? '' : ' disabled'}>Life Hub 연결</button></div>${connectAvailable(location) ? '' : '<p class="hint">배포된 주소에서만 연결할 수 있어요.</p>'}`}
 ${connected && !proposals.length && !syncing ? '<p class="hint">검토할 제안이 없어요.</p>' : ''}
 ${rows ? `<ul class="hub-list">${rows}</ul>` : ''}
@@ -272,6 +381,7 @@ ${justStamped ? `<button type="button" class="pill" data-act="open">${esc(label(
       }
       if (act === 'disconnect') { disconnect(deps); proposals = []; message = 'Life Hub 연결을 해제했어요.'; paint(); return; }
       if (act === 'sync') { runSync(); return; }
+      if (act === 'auto') { setAutoApply(deps, btn.checked); if (btn.checked) runSync(); return; }
       if (act === 'open' && justStamped) { const j = justStamped; justStamped = null; paint(); opts.close(); opts.onSelect(j.key, j.lineN); return; }
       const li = btn.closest('.hub-item');
       const p = li && proposals.find((x) => x.key === li.dataset.key);
@@ -280,8 +390,18 @@ ${justStamped ? `<button type="button" class="pill" data-act="open">${esc(label(
         rejectLocally(p.key, deps);
         justStamped = null;
         proposals = proposals.filter((x) => x.key !== p.key);
-        message = `${p.station} 제안을 거절했어요. 도장첩은 바뀌지 않았어요.`;
+        message = p.kind === 'draw' ? `뽑기 제안(${label(p.station)})을 거절했어요.` : `${p.station} 제안을 거절했어요. 도장첩은 바뀌지 않았어요.`;
         paint(); runSync();
+        return;
+      }
+      if (act === 'go') {
+        const lineN = drawTarget(p, eligibleNow());
+        if (lineN === null) return;
+        rememberReceipt(p.key, drawIdFor(p.station), deps);
+        proposals = proposals.filter((x) => x.key !== p.key);
+        message = `${label(p.station)}역을 지금 목표 역으로 정했어요.`;
+        paint(); runSync();
+        opts.close(); if (opts.onSelect) opts.onSelect(p.station, lineN); else C.setCurrent({ name: p.station, line: lineN });
         return;
       }
       if (act === 'stamp') {
@@ -299,12 +419,20 @@ ${justStamped ? `<button type="button" class="pill" data-act="open">${esc(label(
       }
     });
 
-    on('stamps', () => { if (proposals.length) paint(); });
+    on('stamps', () => { if (proposals.length) paint(); sharePoolSoon(); });
+    on('settings', () => { if (proposals.length) paint(); sharePoolSoon(); });
+    /* 도장·뽑기 범위가 바뀌면 허브의 뽑기 가능 역도 곧 맞춰요 (몇 초 모아서 한 번) */
+    let poolTimer = 0;
+    function sharePoolSoon() {
+      if (!isConnected(deps)) return;
+      clearTimeout(poolTimer);
+      poolTimer = setTimeout(() => { uploadRefs(deps, eligibleNow()).catch(() => {}); }, 3000);
+    }
     paint();
     (callbackOnce = callbackOnce || completeStoredCallback(deps))
       .then((done) => { if (done) { message = 'Life Hub에 연결했어요.'; opts.openAt(); } runSync(); })
       .catch((e) => { message = e.message || 'Life Hub에 연결하지 못했어요.'; paint(); });
   }
 
-  Object.assign(C, { mountLifeHub, lifehub: { parseProposal, findStations, lineFor, entityIdFor, sync, beginConnect, completeStoredCallback, stampFromProposal } });
+  Object.assign(C, { mountLifeHub, lifehub: { parseProposal, findStations, lineFor, entityIdFor, drawIdFor, sync, beginConnect, completeStoredCallback, stampFromProposal, autoPlan, drawTarget, lineRefs, stationRefs, autoApplyEnabled, setAutoApply } });
 })();
