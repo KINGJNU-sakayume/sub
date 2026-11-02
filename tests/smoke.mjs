@@ -348,6 +348,47 @@ console.log('반쪽 창 지도 (960px)');
   await p.context().close();
 }
 
+console.log('Life Hub 제안 (네트워크는 가짜 응답)');
+{
+  const tokens = { access_token: 'access-synthetic', refresh_token: 'refresh-synthetic', access_expires_at: Date.now() + 3600e3 };
+  const p = await page(seed({ stamps: { '왕십리': { d: '2026-10-17', l: 'GJ' } } }), {
+    init: `localStorage.setItem('metro-stamp.lifehub.tokens.v1', ${JSON.stringify(JSON.stringify(tokens))});`,
+  });
+  const cand = (key, payload) => ({ key: 'claude:' + key, candidate: { schema_version: 1, candidate_type: 'station_visit', source: 'claude', idempotency_key: key, created_at: '2026-11-01T01:00:00Z', payload } });
+  const posted = [];
+  await p.context().route(/life-hub-api\.213303\.workers\.dev/, async (r) => {
+    const req = r.request();
+    const cors = { 'access-control-allow-origin': '*', 'access-control-allow-headers': 'authorization, content-type', 'access-control-allow-methods': 'GET, POST' };
+    if (req.method() === 'OPTIONS') return r.fulfill({ status: 204, headers: cors });
+    if (req.method() === 'POST') { posted.push(JSON.parse(req.postData() || '{}')); return r.fulfill({ status: 200, headers: cors, contentType: 'application/json', body: '{}' }); }
+    return r.fulfill({ status: 200, headers: cors, contentType: 'application/json', body: JSON.stringify({ candidates: [
+      cand('mcp-' + 'a'.repeat(40), { station: '망원역', date: '2026-10-31', note: '가상 메모' }),
+      cand('mcp-' + 'b'.repeat(40), { station: '신촌', date: '2026-10-30' }),
+    ] }) });
+  });
+  await p.goto(BASE + 'index.html');
+  await p.waitForSelector('.hub-hint:not([hidden])');
+  ok((await p.textContent('.hub-hint')) === '제안 2', '기록 버튼 옆에 제안 수가 보임');
+  await p.click('.hub-hint');
+  await p.waitForSelector('.drawer.on');
+  const items = await p.$$('.hub-item');
+  ok(items.length === 2, '서랍에 제안 2개');
+  ok(await p.isChecked('.hub-item:first-child input[type=radio]'), '이름이 하나로 맞으면(망원역 → 망원) 미리 골라 둠');
+  ok((await p.$$('.hub-item:nth-child(2) input[type=radio]:checked')).length === 0 && (await p.$$('.hub-item:nth-child(2) input[type=radio]')).length === 2, '같은 이름의 역이 둘이면(신촌) 고르게 함');
+  await p.click('.hub-item:first-child [data-act="stamp"]');
+  const stamp = await p.evaluate(() => JSON.parse(localStorage.getItem('metro-stamp:v2')).stamps['망원']);
+  ok(stamp && stamp.d === '2026-10-31' && !stamp.p, '승인하면 제안한 날짜로 기본 도장');
+  await p.waitForFunction(() => document.querySelectorAll('.hub-item').length === 1);
+  ok(/망원역에 2026\.10\.31 도장/.test(await p.textContent('#lifehubBox .note')), '찍은 결과를 알려 줌');
+  ok(await p.isVisible('[data-act="open"]'), '사진을 붙이러 그 역을 열 수 있음');
+  ok(posted.some((b) => b.key === 'claude:mcp-' + 'a'.repeat(40) && b.entity_type === 'station_visit' && /^st_[A-Za-z0-9_-]+$/.test(b.entity_id)), '승인 결과를 Life Hub에 보냄');
+  await p.click('.hub-item [data-act="reject"]');
+  ok(posted.some((b) => b.key === 'claude:mcp-' + 'b'.repeat(40) && !b.entity_type), '거절을 Life Hub에 보냄');
+  ok(!(await p.evaluate(() => JSON.parse(localStorage.getItem('metro-stamp:v2')).stamps['신촌'])), '거절하면 도장첩은 그대로');
+  ok(!p.errors.length, '자바스크립트 오류 없음' + (p.errors.length ? ': ' + p.errors[0] : ''));
+  await p.context().close();
+}
+
 await browser.close();
 console.log(failed ? `\n실패 ${failed}개` : '\n모두 통과');
 process.exit(failed ? 1 : 0);

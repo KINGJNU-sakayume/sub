@@ -42,6 +42,7 @@ PR과 main 배포(`pages.yml`)는 모두 `check.yml`(위 세 검사)을 통과�
 | `core/base.js` | 역 색인, 이벤트, 저장·검증, 뽑기 범위, 사진 DB, 창(모달) 도우미 |
 | `core/draw.js`, `core/route.js` | 뽑기 엔진, 길 안내 그래프 |
 | `core/sticker.js`, `core/seal.js`, `core/card.js` | 사진 → 스티커, 사진 없는 도장, 공유 카드 |
+| `core/lifehub.js` | Life Hub 연결·제안 확인(기록 서랍) |
 | `core/board.js`, `core/drawer.js`, `core/origin.js`, `core/backup.js` | 안내판과 사진 도장, 역 직접 찾기·도장첩, 출발역 창, 내보내기·불러오기 |
 | `sign.js`, `map.js` | 역명판 화면, 지도 화면 |
 
@@ -68,6 +69,16 @@ PR과 main 배포(`pages.yml`)는 모두 `check.yml`(위 세 검사)을 통과�
 읽을 때 필드마다 형태를 검사해요(`core/base.js`의 `load`, `cleanStamp`). 노선이 그 역의 노선이 아니면 역의 첫 노선으로 고쳐요. 저장에 실패하면 화면 위에 알림이 떠요.
 
 사진: IndexedDB `metro-stamp` › `photos`, 키는 역 키, 값은 스티커 PNG Blob.
+
+## Life Hub로 방문 제안 받기 (선택)
+
+Claude에게 "오늘 망원역 다녀왔어"라고 말하면, Claude가 [Life Hub](https://github.com/KINGJNU-sakayume/life-hub)에 **역 방문 제안**을 남기고 이 페이지가 받아 와요(`core/lifehub.js`).
+
+- 기록 › **Life Hub 제안**에서 한 번 연결해요(배포된 주소에서만). 이 페이지는 `sub:inbox` 권한만 받아 자기 제안만 읽어요. Life Hub는 `lifehub/` 페이지로 돌아와요.
+- 제안이 있으면 기록 버튼 옆에 '제안 N'이 떠요. 역 이름(과 노선)이 하나로 맞으면 미리 골라 두고, 같은 이름의 역이 여럿이면 직접 골라요.
+- 「도장 찍기」를 눌러야 제안한 날짜로 **기본 도장**이 찍혀요. 이미 도장이 있으면 날짜·사진을 그대로 둬요. 찍은 뒤 그 역을 열어 사진 스티커를 붙일 수 있어요.
+- 「거절」은 도장첩을 바꾸지 않아요. 승인·거절 결과는 동기화할 때 Life Hub에 알려요.
+- 저장: `metro-stamp.lifehub.*` (localStorage) — 연결 토큰, 승인·거절 기록. 도장 자체는 지금처럼 `metro-stamp:v2`.
 
 ## 백업
 
