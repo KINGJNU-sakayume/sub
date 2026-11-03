@@ -439,6 +439,40 @@ console.log('Life Hub 카드 승인 (네트워크는 가짜 응답)');
   await p.context().close();
 }
 
+console.log('Life Hub 뽑기 가능 역: 409 뒤에 다시 보냄 (네트워크는 가짜 응답)');
+{
+  const tokens = { access_token: 'access-synthetic', refresh_token: 'refresh-synthetic', access_expires_at: Date.now() + 3600e3 };
+  const p = await page(seed({ stamps: {} }), {
+    init: `localStorage.setItem('metro-stamp.lifehub.tokens.v1', ${JSON.stringify(JSON.stringify(tokens))});`,
+  });
+  const pools = [];
+  let poolStatus = 409;
+  await p.context().route(/life-hub-api\.213303\.workers\.dev/, async (r) => {
+    const req = r.request();
+    const cors = { 'access-control-allow-origin': '*', 'access-control-allow-headers': 'authorization, content-type', 'access-control-allow-methods': 'GET, POST, PUT' };
+    if (req.method() === 'OPTIONS') return r.fulfill({ status: 204, headers: cors });
+    if (req.method() === 'PUT') {
+      const kind = new URL(req.url()).pathname.split('/').pop();
+      if (kind === 'pool') { pools.push(JSON.parse(req.postData() || '{}').revision); return r.fulfill({ status: poolStatus, headers: cors, contentType: 'application/json', body: '{}' }); }
+      return r.fulfill({ status: 200, headers: cors, contentType: 'application/json', body: '{}' });
+    }
+    return r.fulfill({ status: 200, headers: cors, contentType: 'application/json', body: JSON.stringify({ candidates: [] }) });
+  });
+  await p.goto(BASE + 'index.html');
+  await p.waitForFunction(() => { const s = JSON.parse(localStorage.getItem('metro-stamp.lifehub.refs.v1') || '{}'); return s.lists === 1; });
+  const first = await p.evaluate(() => JSON.parse(localStorage.getItem('metro-stamp.lifehub.refs.v1')));
+  ok(pools.length === 1 && !first.poolBody, '409를 받은 뽑기 가능 역은 보낸 것으로 적지 않음');
+  poolStatus = 200;
+  await p.click('#openRecord');
+  await p.waitForSelector('.drawer.on');
+  await p.click('[data-go="secHub"]');
+  await p.click('#lifehubBox [data-act="sync"]');
+  await p.waitForFunction(() => !!JSON.parse(localStorage.getItem('metro-stamp.lifehub.refs.v1') || '{}').poolBody);
+  ok(pools.length === 2, '다음 동기화에서 다시 보내고 저장됨');
+  ok(!p.errors.length, '자바스크립트 오류 없음' + (p.errors.length ? ': ' + p.errors[0] : ''));
+  await p.context().close();
+}
+
 await browser.close();
 console.log(failed ? `\n실패 ${failed}개` : '\n모두 통과');
 process.exit(failed ? 1 : 0);

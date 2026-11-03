@@ -136,15 +136,17 @@
   /** 노선·역 목록은 판마다 한 번, 뽑을 수 있는 역은 바뀔 때만 올려요. 409 = 더 새 목록이 이미 있음 */
   async function uploadRefs(deps, eligible) {
     const sent = readJson(deps.storage, REFS_KEY) || {};
+    /* 'stored' | 'newer'(409: 허브에 더 새 판이 있음) | 'failed' */
     const put = async (kind, revision, items) => {
       const res = await api(deps, 'PUT', '/refs/' + kind, { revision, items });
-      return res.ok || res.status === 409;
+      return res.ok ? 'stored' : res.status === 409 ? 'newer' : 'failed';
     };
-    if (sent.lists !== LISTS_REVISION && await put('lines', LISTS_REVISION, lineRefs()) && await put('stations', LISTS_REVISION, stationRefs(null))) sent.lists = LISTS_REVISION;
+    if (sent.lists !== LISTS_REVISION && await put('lines', LISTS_REVISION, lineRefs()) !== 'failed' && await put('stations', LISTS_REVISION, stationRefs(null)) !== 'failed') sent.lists = LISTS_REVISION;
     const pool = stationRefs(eligible), body = JSON.stringify(pool);
     if (sent.poolBody !== body) {
       const revision = Math.max(deps.now(), (sent.poolRevision || 0) + 1);
-      if (await put('pool', revision, pool)) { sent.poolBody = body; sent.poolRevision = revision; }
+      /* 뽑기 가능 역의 409는 다른 기기(또는 시계가 빠른 기기)가 더 늦은 판을 올렸다는 뜻: 보낸 것으로 적지 않고 다음에 다시 보내요 */
+      if (await put('pool', revision, pool) === 'stored') { sent.poolBody = body; sent.poolRevision = revision; }
     }
     deps.storage.setItem(REFS_KEY, JSON.stringify(sent));
   }
