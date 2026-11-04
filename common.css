@@ -504,3 +504,16 @@ html.locked body { position: fixed; left: 0; right: 0; width: 100%; }   /* top�
 .hub-choices { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 8px; }
 .hub-choice { display: inline-flex; align-items: center; gap: 6px; }
 .hub-choice small { color: var(--board-muted); }
+
+/* Life Hub 섹션: 상태 줄과 확인 필요 상자, 기록 버튼의 확인 필요 점 */
+.hub-status { display: flex; align-items: center; gap: 8px; margin: 0 0 12px; font-size: .95rem; font-weight: 700; }
+.hub-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--ink-strong); }
+.hub-dot.warn { background: #b3261e; }
+.hub-alert { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; margin: 0 0 12px; padding: 12px 14px; color: #fff; background: #b3261e; border-radius: 12px; }
+.hub-alert p { margin: 0; font-size: .92rem; font-weight: 700; line-height: 1.45; }
+.hub-alert .pill { color: var(--ink); }
+.rec-btn[data-hub-alert] { position: relative; }
+.rec-btn[data-hub-alert]::before {
+  content: ''; position: absolute; top: -3px; right: -3px; width: 8px; height: 8px; border-radius: 50%;
+  background: #b3261e; box-shadow: 0 0 0 2px #fff;
+}

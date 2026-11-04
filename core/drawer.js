@@ -54,7 +54,7 @@
     <p class="hint">끈 노선과 범위 밖 역의 도장도 지워지지 않고 남아요. 길 안내는 모든 노선으로 찾아요.</p>
   </section>
   <section class="settings">
-    <h3 id="secHub" tabindex="-1">Life Hub 제안</h3>
+    <h3 id="secHub" tabindex="-1">Life Hub</h3>
     <div id="lifehubBox"></div>
   </section>
   <section class="settings">
@@ -270,7 +270,7 @@
     /* Life Hub 제안 (core/lifehub.js가 있을 때만) */
     if (C.mountLifeHub) {
       C.mountLifeHub($('#lifehubBox', dr), {
-        button: btn, close, onSelect: opts.onSelect,
+        button: btn, close, onSelect: opts.onSelect, refreshButton: () => bindCount.refresh(btn),
         openAt: () => { open(); requestAnimationFrame(() => goTo('secHub')); },
       });
     }
@@ -317,10 +317,16 @@
   }
 
   /* 기록 버튼에 도장 수를 표시 */
+  /* 확인 필요(점)일 때는 접근성 이름 끝에 ' (확인 필요)'를 붙여요 */
+  function paintName(btn) {
+    if (btn.dataset.hubAlert) btn.setAttribute('aria-label', btn.textContent + ' (확인 필요)'); else btn.removeAttribute('aria-label');
+  }
+  bindCount.refresh = paintName;
   function bindCount(btn) {
     const paint = () => {
       const done = [...STATIONS.keys()].filter((n) => state.stamps[n]).length;
       btn.textContent = '기록 ' + done + ' / ' + STATIONS.size;
+      paintName(btn);
     };
     paint();
     on('stamps', paint);
