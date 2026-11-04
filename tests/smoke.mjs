@@ -473,6 +473,58 @@ console.log('Life Hub 뽑기 가능 역: 409 뒤에 다시 보냄 (네트워크�
   await p.context().close();
 }
 
+const HUB_CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers': 'authorization, content-type', 'access-control-allow-methods': 'GET, POST, PUT' };
+const HUB_TOKENS = `localStorage.setItem('metro-stamp.lifehub.tokens.v1', ${JSON.stringify(JSON.stringify({ access_token: 'access-synthetic', refresh_token: 'refresh-synthetic', access_expires_at: Date.now() + 3600e3 }))});`;
+
+console.log('Life Hub 설정 섹션 규격 (네트워크는 가짜 응답)');
+{
+  /* 연결 전: 제안 진입점 없음, 연결 버튼은 설정의 Life Hub 섹션에만 */
+  const p = await page(seed());
+  await p.goto(BASE + 'index.html');
+  await p.waitForFunction(() => window.Core && window.Core.mountLifeHub);
+  ok((await p.$$('#openRecord[data-hub]')).length === 0 && (await p.$$('#openRecord[data-hub-alert]')).length === 0, '연결 전에는 기록 버튼에 배지·점이 없음');
+  ok(await p.evaluate(() => [...document.querySelectorAll('button')].filter((b) => b.textContent.trim() === 'Life Hub 연결').every((b) => b.closest('#lifehubBox')) &&
+    document.querySelectorAll('#lifehubBox [data-act="connect"]').length === 1), '「Life Hub 연결」 버튼은 서랍의 Life Hub 섹션에만 하나');
+  ok((await p.textContent('#secHub')) === 'Life Hub', '섹션 제목이 Life Hub');
+  ok(!(await p.evaluate(() => /클라우드/.test(document.body.innerText + document.querySelector('.drawer').textContent))), '화면에 「클라우드」라는 말이 없음');
+  await p.context().close();
+}
+
+{
+  /* 연결됨 + 제안 0건: 진입점 없음, 상태 줄과 규격 버튼 */
+  const p = await page(seed(), { init: HUB_TOKENS });
+  await p.context().route(/life-hub-api\.213303\.workers\.dev/, (r) => r.fulfill({ status: 200, headers: HUB_CORS, contentType: 'application/json', body: JSON.stringify({ candidates: [] }) }));
+  await p.goto(BASE + 'index.html');
+  await p.waitForSelector('#lifehubBox .hub-status', { state: 'attached' });
+  await p.waitForFunction(() => document.querySelector('#lifehubBox .hub-status').textContent.trim() === '연결됨');
+  ok((await p.$$('#openRecord[data-hub]')).length === 0, '제안 0건이면 제안 진입점(배지)이 렌더되지 않음');
+  const text = await p.textContent('#lifehubBox');
+  ok(text.includes('지금 동기화') && text.includes('연결 해제') && text.includes('Claude에서 승인한 기록은 바로 반영'), '연결됨: 지금 동기화·연결 해제·자동 반영 체크박스');
+  ok((await p.$$('#lifehubBox details')).length === 0, '제안만 받는 앱은 고급 영역이 없음');
+  ok(!p.errors.length, '자바스크립트 오류 없음' + (p.errors.length ? ': ' + p.errors[0] : ''));
+  await p.context().close();
+}
+
+{
+  /* 토큰이 거부되면 상태 C: 설정 진입점에 점 + 접근성 이름 */
+  const p = await page(seed(), { init: HUB_TOKENS });
+  await p.context().route(/life-hub-api\.213303\.workers\.dev/, (r) => r.fulfill({ status: 401, headers: HUB_CORS, contentType: 'application/json', body: '{"error":"invalid_grant"}' }));
+  await p.goto(BASE + 'index.html');
+  await p.waitForSelector('#openRecord[data-hub-alert]', { state: 'attached' });
+  ok(/ \(확인 필요\)$/.test((await p.getAttribute('#openRecord', 'aria-label')) || ''), '확인 필요일 때 설정 진입점 접근성 이름 끝에 (확인 필요)');
+  const dot = await p.evaluate(() => { const c = getComputedStyle(document.querySelector('#openRecord'), '::before'); return [c.width, c.height]; });
+  ok(dot[0] === '8px' && dot[1] === '8px', '설정 진입점의 경고 점은 지름 8px');
+  await p.click('#openRecord');
+  await p.waitForSelector('.drawer.on');
+  const box = await p.textContent('#lifehubBox');
+  ok(box.includes('확인 필요') && box.includes('Life Hub 연결이 끊겼습니다. 다시 연결해 주세요. 이 기기의 기록은 그대로입니다.'), '서랍에 확인 필요 상태와 원인 문장');
+  ok((await p.textContent('#lifehubBox [data-act="connect"]')) === '다시 연결', '해결 버튼은 「다시 연결」');
+  await p.click('#lifehubBox [data-act="disconnect"]');
+  ok((await p.$$('#openRecord[data-hub-alert]')).length === 0 && !(await p.getAttribute('#openRecord', 'aria-label')), '연결 해제하면 점과 (확인 필요)가 사라짐');
+  ok(!p.errors.length, '자바스크립트 오류 없음' + (p.errors.length ? ': ' + p.errors[0] : ''));
+  await p.context().close();
+}
+
 await browser.close();
 console.log(failed ? `\n실패 ${failed}개` : '\n모두 통과');
 process.exit(failed ? 1 : 0);

@@ -280,6 +280,8 @@
   let message = '';
   let justStamped = null;   // { key, lineN }: 사진을 붙이러 그 역을 열 수 있게
   let callbackOnce = null;
+  let needsReconnect = false;   // 토큰이 없어지거나 거부돼 다시 연결해야 해요(이 탭에서만 기억)
+  let retryLater = false;       // 네트워크·서버 문제로 마지막 동기화가 실패함
 
   function badge(L) {
     return `<span class="lbadge${isText(L) ? ' txt' : ''}" style="background:${L.color};color:${L.ink}" aria-hidden="true">${esc(lineShort(L))}</span>`;
@@ -312,7 +314,7 @@
 
     async function runSync() {
       if (!isConnected(deps)) { paint(); return; }
-      syncing = true; paint();
+      syncing = true; retryLater = false; paint();
       try {
         let r = await sync(deps, eligibleNow());
         proposals = r.proposals;
@@ -320,13 +322,19 @@
         if (applyApproved()) { r = await sync(deps, eligibleNow()); proposals = r.proposals; }
         if (r.conflicts) message = `${r.conflicts}개 제안은 Life Hub와 상태가 달라요. 도장첩은 그대로예요.`;
       } catch (e) {
-        if (e.kind === 'not_connected') proposals = [];
+        if (e.kind === 'not_connected') { proposals = []; needsReconnect = true; }
+        else if (e.kind === 'network' || e.kind === 'server') retryLater = true;
         message = e.message || '동기화하지 못했어요.';
       } finally { syncing = false; paint(); }
     }
 
     function paint() {
       const connected = isConnected(deps);
+      const attention = !connected && needsReconnect;   // 상태 C
+      if (connected) needsReconnect = false;
+      /* 설정 진입점(기록 버튼): 확인 필요일 때만 점과 접근성 이름 */
+      if (attention) opts.button.dataset.hubAlert = '1'; else delete opts.button.dataset.hubAlert;
+      if (opts.refreshButton) opts.refreshButton();
       /* 기록 버튼에 작은 숫자 배지, 서랍 바로가기에 개수 */
       const n = proposals.length;
       if (n) { opts.button.dataset.hub = String(n); opts.button.title = 'Claude가 제안한 역 방문 ' + n + '개'; }
@@ -362,12 +370,25 @@
   </div>
 </li>`;
       }).join('');
+      const dot = (warn) => `<span class="hub-dot${warn ? ' warn' : ''}" aria-hidden="true"></span>`;
+      const connectBtn = (text) => `<button type="button" class="pill" data-act="connect"${connectAvailable(location) ? '' : ' disabled'}>${text}</button>`;
+      const where = connectAvailable(location) ? '' : '<p class="hint">배포된 주소에서만 연결할 수 있어요.</p>';
+      let top;
+      if (connected) {
+        const status = syncing ? '연결됨 · 동기화 중…' : retryLater ? '연결됨 · 잠시 뒤 다시 시도' : '연결됨';
+        top = `<p class="hub-status">${dot(false)}<span>${status}</span></p>
+<div class="backup-actions"><button type="button" class="pill" data-act="sync"${syncing ? ' disabled' : ''}>지금 동기화</button><button type="button" class="pill" data-act="disconnect">연결 해제</button></div>
+<label class="switch"><input type="checkbox" data-act="auto"${autoApplyEnabled(deps) ? ' checked' : ''}><span class="box" aria-hidden="true"></span><span>Claude에서 승인한 기록은 바로 반영</span></label>`;
+      } else if (attention) {
+        top = `<p class="hub-status">${dot(true)}<span>확인 필요</span></p>
+<div class="hub-alert" role="alert"><p>Life Hub 연결이 끊겼습니다. 다시 연결해 주세요. 이 기기의 기록은 그대로입니다.</p>${connectBtn('다시 연결')}</div>${where}
+<div class="backup-actions"><button type="button" class="pill" data-act="disconnect">연결 해제</button></div>`;
+      } else {
+        top = `<p class="hint">Claude가 제안한 기록을 받습니다.</p>
+<div class="backup-actions">${connectBtn('Life Hub 연결')}</div>${where}`;
+      }
       box.innerHTML = `
-<p class="hint">Claude에게 다녀온 역을 말하면 여기에 제안으로 와요. 확인하고 「도장 찍기」를 눌러야 기록돼요. 사진 스티커는 찍은 뒤 그 역을 열어 붙일 수 있어요.</p>
-${connected ? `<div class="backup-actions"><button type="button" class="pill" data-act="sync"${syncing ? ' disabled' : ''}>${syncing ? '동기화 중…' : '지금 동기화'}</button><button type="button" class="pill" data-act="disconnect">연결 해제</button></div>
-<label class="switch"><input type="checkbox" data-act="auto"${autoApplyEnabled(deps) ? ' checked' : ''}><span class="box" aria-hidden="true"></span><span>Claude에서 승인된 항목 자동 반영</span></label>`
-    : `<div class="backup-actions"><button type="button" class="pill" data-act="connect"${connectAvailable(location) ? '' : ' disabled'}>Life Hub 연결</button></div>${connectAvailable(location) ? '' : '<p class="hint">배포된 주소에서만 연결할 수 있어요.</p>'}`}
-${connected && !proposals.length && !syncing ? '<p class="hint">검토할 제안이 없어요.</p>' : ''}
+${top}
 ${rows ? `<ul class="hub-list">${rows}</ul>` : ''}
 <p class="note" role="status">${esc(message)}</p>
 ${justStamped ? `<button type="button" class="pill" data-act="open">${esc(label(justStamped.key))}역 열어서 사진 붙이기</button>` : ''}`;
@@ -381,7 +402,7 @@ ${justStamped ? `<button type="button" class="pill" data-act="open">${esc(label(
         beginConnect(deps).then((u) => location.assign(u)).catch((err) => { message = err.message; paint(); });
         return;
       }
-      if (act === 'disconnect') { disconnect(deps); proposals = []; message = 'Life Hub 연결을 해제했어요.'; paint(); return; }
+      if (act === 'disconnect') { disconnect(deps); proposals = []; needsReconnect = false; retryLater = false; message = 'Life Hub 연결을 해제했어요.'; paint(); return; }
       if (act === 'sync') { runSync(); return; }
       if (act === 'auto') { setAutoApply(deps, btn.checked); if (btn.checked) runSync(); return; }
       if (act === 'open' && justStamped) { const j = justStamped; justStamped = null; paint(); opts.close(); opts.onSelect(j.key, j.lineN); return; }
@@ -433,7 +454,7 @@ ${justStamped ? `<button type="button" class="pill" data-act="open">${esc(label(
     paint();
     (callbackOnce = callbackOnce || completeStoredCallback(deps))
       .then((done) => { if (done) { message = 'Life Hub에 연결했어요.'; opts.openAt(); } runSync(); })
-      .catch((e) => { message = e.message || 'Life Hub에 연결하지 못했어요.'; paint(); });
+      .catch((e) => { message = e.message || 'Life Hub에 연결하지 못했어요.'; needsReconnect = !isConnected(deps); paint(); opts.openAt(); });
   }
 
   Object.assign(C, { mountLifeHub, lifehub: { parseProposal, findStations, lineFor, entityIdFor, drawIdFor, sync, beginConnect, completeStoredCallback, stampFromProposal, autoPlan, drawTarget, lineRefs, stationRefs, autoApplyEnabled, setAutoApply } });
