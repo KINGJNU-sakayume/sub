@@ -1,0 +1,386 @@
+{
+  "version": 1,
+  "app": "sub",
+  "generated_at": "2026-11-05T12:00:00.000Z",
+  "tiles": [
+    {
+      "id": "station",
+      "name": "역 도장깨기 · 최근 역",
+      "tone": "plate",
+      "sizes": [
+        "1x1",
+        "2x1",
+        "4x2"
+      ],
+      "size": "4x2",
+      "default": true,
+      "href": "https://kingjnu-sakayume.github.io/sub/",
+      "data": {
+        "label": "역 도장깨기",
+        "name": "홍대입구",
+        "roman": "Hongik Univ.",
+        "sub": "11/2 · 2호선 · 7 / 540역",
+        "roulette": {
+          "candidates": [
+            "도봉산",
+            "도봉",
+            "서울역",
+            "용산",
+            "대방",
+            "신길",
+            "영등포",
+            "신도림",
+            "강변",
+            "종합운동장",
+            "역삼",
+            "서초",
+            "봉천",
+            "당산",
+            "아현",
+            "양천구청",
+            "까치산",
+            "경복궁",
+            "압구정",
+            "경찰병원",
+            "불암산",
+            "쌍문",
+            "미아사거리",
+            "한성대입구",
+            "동작",
+            "오목교",
+            "청구",
+            "강동",
+            "올림픽공원",
+            "거여",
+            "월드컵경기장",
+            "안암",
+            "돌곶이",
+            "화랑대",
+            "수락산",
+            "면목",
+            "용마산",
+            "내방",
+            "장승배기",
+            "암사",
+            "몽촌토성",
+            "석촌",
+            "양천향교",
+            "염창",
+            "선유도",
+            "국회의사당",
+            "흑석",
+            "삼성중앙",
+            "봉은사",
+            "중앙보훈병원"
+          ]
+        }
+      }
+    },
+    {
+      "id": "recent",
+      "name": "역 도장깨기 · 최근 찍은 역",
+      "tone": "type",
+      "form": "list",
+      "sizes": [
+        "2x1",
+        "2x2"
+      ],
+      "size": "2x2",
+      "default": true,
+      "href": "https://kingjnu-sakayume.github.io/sub/",
+      "data": {
+        "label": "최근 찍은 역",
+        "rows": [
+          {
+            "title": "홍대입구",
+            "value": "11/2",
+            "sub": "2호선"
+          },
+          {
+            "title": "왕십리",
+            "value": "11/1",
+            "sub": "2호선"
+          },
+          {
+            "title": "성수",
+            "value": "10/25",
+            "sub": "2호선"
+          },
+          {
+            "title": "합정",
+            "value": "10/11",
+            "sub": "2호선"
+          },
+          {
+            "title": "망원",
+            "value": "10/11",
+            "sub": "6호선"
+          },
+          {
+            "title": "을지로3가",
+            "value": "10/4",
+            "sub": "2호선"
+          },
+          {
+            "title": "시청",
+            "value": "9/20",
+            "sub": "1호선"
+          }
+        ]
+      }
+    },
+    {
+      "id": "line",
+      "name": "역 도장깨기 · 노선 지도",
+      "tone": "map",
+      "sizes": [
+        "2x1",
+        "2x2",
+        "4x2"
+      ],
+      "size": "2x2",
+      "default": false,
+      "href": "https://kingjnu-sakayume.github.io/sub/",
+      "data": {
+        "label": "2호선",
+        "summary": "2호선 51역 중 6역 방문 · 최근 홍대입구 11/2",
+        "cols": 12,
+        "cells": [
+          {
+            "state": "on",
+            "name": "시청"
+          },
+          {
+            "state": "off",
+            "name": "을지로입구"
+          },
+          {
+            "state": "on",
+            "name": "을지로3가"
+          },
+          {
+            "state": "off",
+            "name": "을지로4가"
+          },
+          {
+            "state": "off",
+            "name": "동대문역사…"
+          },
+          {
+            "state": "off",
+            "name": "신당"
+          },
+          {
+            "state": "off",
+            "name": "상왕십리"
+          },
+          {
+            "state": "on",
+            "name": "왕십리"
+          },
+          {
+            "state": "off",
+            "name": "한양대"
+          },
+          {
+            "state": "off",
+            "name": "뚝섬"
+          },
+          {
+            "state": "on",
+            "name": "성수"
+          },
+          {
+            "state": "off",
+            "name": "건대입구"
+          },
+          {
+            "state": "off",
+            "name": "구의"
+          },
+          {
+            "state": "off",
+            "name": "강변"
+          },
+          {
+            "state": "off",
+            "name": "잠실나루"
+          },
+          {
+            "state": "off",
+            "name": "잠실"
+          },
+          {
+            "state": "off",
+            "name": "잠실새내"
+          },
+          {
+            "state": "off",
+            "name": "종합운동장"
+          },
+          {
+            "state": "off",
+            "name": "삼성"
+          },
+          {
+            "state": "off",
+            "name": "선릉"
+          },
+          {
+            "state": "off",
+            "name": "역삼"
+          },
+          {
+            "state": "off",
+            "name": "강남"
+          },
+          {
+            "state": "off",
+            "name": "교대"
+          },
+          {
+            "state": "off",
+            "name": "서초"
+          },
+          {
+            "state": "off",
+            "name": "방배"
+          },
+          {
+            "state": "off",
+            "name": "사당"
+          },
+          {
+            "state": "off",
+            "name": "낙성대"
+          },
+          {
+            "state": "off",
+            "name": "서울대입구"
+          },
+          {
+            "state": "off",
+            "name": "봉천"
+          },
+          {
+            "state": "off",
+            "name": "신림"
+          },
+          {
+            "state": "off",
+            "name": "신대방"
+          },
+          {
+            "state": "off",
+            "name": "구로디지털…"
+          },
+          {
+            "state": "off",
+            "name": "대림"
+          },
+          {
+            "state": "off",
+            "name": "신도림"
+          },
+          {
+            "state": "off",
+            "name": "문래"
+          },
+          {
+            "state": "off",
+            "name": "영등포구청"
+          },
+          {
+            "state": "off",
+            "name": "당산"
+          },
+          {
+            "state": "on",
+            "name": "합정"
+          },
+          {
+            "state": "last",
+            "name": "홍대입구"
+          },
+          {
+            "state": "off",
+            "name": "신촌"
+          },
+          {
+            "state": "off",
+            "name": "이대"
+          },
+          {
+            "state": "off",
+            "name": "아현"
+          },
+          {
+            "state": "off",
+            "name": "충정로"
+          },
+          {
+            "state": "off",
+            "name": "용답"
+          },
+          {
+            "state": "off",
+            "name": "신답"
+          },
+          {
+            "state": "off",
+            "name": "용두"
+          },
+          {
+            "state": "off",
+            "name": "신설동"
+          },
+          {
+            "state": "off",
+            "name": "도림천"
+          },
+          {
+            "state": "off",
+            "name": "양천구청"
+          },
+          {
+            "state": "off",
+            "name": "신정네거리"
+          },
+          {
+            "state": "off",
+            "name": "까치산"
+          }
+        ]
+      }
+    },
+    {
+      "id": "count",
+      "name": "역 도장깨기 · 진행률",
+      "tone": "type",
+      "form": "num",
+      "sizes": [
+        "1x1",
+        "2x1"
+      ],
+      "size": "1x1",
+      "default": false,
+      "href": "https://kingjnu-sakayume.github.io/sub/",
+      "data": {
+        "label": "찍은 역",
+        "value": 7,
+        "unit": "역",
+        "caption": "/ 540",
+        "foot": [
+          {
+            "k": "2호선",
+            "v": "6/51"
+          },
+          {
+            "k": "최근",
+            "v": "11/2"
+          }
+        ]
+      }
+    }
+  ]
+}

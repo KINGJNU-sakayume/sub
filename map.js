@@ -226,7 +226,7 @@
   C.bindCount($('#openRecord'));
 
   D.unvisited.checked = !!state.unvisited;
-  D.unvisited.addEventListener('change', () => { state.unvisited = D.unvisited.checked; C.save(); D.note.textContent = ''; });
+  D.unvisited.addEventListener('change', () => { state.unvisited = D.unvisited.checked; C.save(); C.emit('settings'); D.note.textContent = ''; });
   D.draw.addEventListener('click', onDraw);
   function setCollapsed(c) {
     D.panel.classList.toggle('collapsed', c);

@@ -5,7 +5,9 @@
    - 승인·거절 결과는 이 기기에 적어 두고, 동기화할 때 Life Hub에 알려요(응답이 올 때까지 다시 보내요).
    - Claude 대화 카드(Life Hub 카드 5단계): 카드에서 승인한 방문은 역이 하나로 정해질 때, 「여기 갈래요」를 누른 뽑기는
      오늘 날짜이고 지금도 뽑을 수 있는 역일 때 바로 반영해요(설정 「Claude에서 승인된 항목 자동 반영」, 기본 켜짐).
-   - 카드와 허브 뽑기를 위해 노선·역 목록과 지금 뽑을 수 있는 역(뽑기 범위·안 간 역 설정 반영)을 Life Hub에 공유해요. */
+   - 카드와 허브 뽑기를 위해 노선·역 목록과 지금 뽑을 수 있는 역(뽑기 범위·안 간 역 설정 반영)을 Life Hub에 공유해요.
+   - Life Board 룰렛이 보낸 뽑기(출처 `board`, `station_draw`만)도 Claude가 뽑은 것과 같은 승인 흐름을 타요.
+   - 보드 목록(core/boardTiles.js)을 `sub:board` 권한으로 올려요(core/boardUpload.js). 권한이 없으면 토큰은 그대로 두고 다시 연결만 안내해요. */
 (() => {
   'use strict';
   const C = window.Core;
@@ -17,7 +19,7 @@
   const CALLBACK_URL = APP_URL + 'lifehub/';
   const CLIENT_ID = APP_URL + 'lifehub-client.json';
   const RESOURCE = LIFEHUB_ORIGIN + '/sub';
-  const SCOPE = 'sub:inbox';
+  const SCOPE = 'sub:inbox sub:board';
   const API = LIFEHUB_ORIGIN + '/sub/v1';
   const CALLBACK_KEY = 'metro-stamp.lifehub.callback.v1';   // lifehub/index.html이 적어요
   const TOKENS_KEY = 'metro-stamp.lifehub.tokens.v1';
@@ -29,7 +31,7 @@
   const REFS_KEY = 'metro-stamp.lifehub.refs.v1';
   const LISTS_REVISION = 1;   // 노선·역 목록(data.js)이 바뀌면 올려요
   const AUTH_MAX_AGE_MS = 10 * 60 * 1000;
-  const KEY = /^(claude|chatgpt|codex|manual):[A-Za-z0-9_.:-]{8,128}$/;
+  const KEY = /^(claude|chatgpt|codex|manual|board):[A-Za-z0-9_.:-]{8,128}$/;
 
   class LifeHubError extends Error {
     constructor(kind, message) { super(message); this.kind = kind; }   // not_connected | denied | state | network | server
@@ -58,7 +60,9 @@
     if (!isObj(c) || c.schema_version !== 1 || typeof c.source !== 'string' ||
       `${c.source}:${String(c.idempotency_key)}` !== item.key || typeof c.created_at !== 'string' || !isObj(c.payload)) return null;
     const p = c.payload;
-    const base = { key: item.key, createdAt: c.created_at, status: item.status === 'approved' ? 'approved' : 'pending', needsAppReview: item.needs_app_review === true };
+    const source = item.key.slice(0, item.key.indexOf(':'));
+    if (source === 'board' && c.candidate_type !== 'station_draw') return null;   // 보드는 룰렛 뽑기만 보낼 수 있어요
+    const base = { key: item.key, source, createdAt: c.created_at, status: item.status === 'approved' ? 'approved' : 'pending', needsAppReview: item.needs_app_review === true };
     if (c.candidate_type === 'station_draw') {
       if (!only(p, ['date', 'line', 'station']) || !validDate(p.date) || !text(p.line, 20) || !text(p.station, 40)) return null;
       return { ...base, kind: 'draw', station: p.station.trim(), line: p.line.trim(), date: p.date };
@@ -289,6 +293,17 @@
 
   function mountLifeHub(box, opts) {
     const deps = browserDeps();
+    /* 보드 목록 올리기 (core/boardTiles.js, core/boardUpload.js가 있을 때만). 실패해도 다른 기능은 그대로예요 */
+    const uploader = C.createBoardUploader && C.buildBoardTiles ? C.createBoardUploader({
+      fetch: deps.fetch, storage: deps.storage, now: deps.now,
+      setTimer: (fn, ms) => setTimeout(fn, ms), clearTimer: (id) => clearTimeout(id),
+      getToken: (force) => accessToken(deps, force),
+      dropTokens: () => { deps.storage.removeItem(TOKENS_KEY); proposals = []; needsReconnect = true; },
+      build: (now) => C.buildBoardTiles({ stamps: state.stamps, eligible: eligibleNow(), LINES: C.LINES, EN: C.EN }, now),
+      hasRecords: () => Object.keys(state.stamps).some((k) => STATIONS.has(k)),
+      connected: () => isConnected(deps),
+      onChange: () => paint(),
+    }) : null;
     const navBtn = box.closest('.drawer') && box.closest('.drawer').querySelector('[data-go="secHub"]');
 
     /** 카드에서 승인한 것 중 더 정할 게 없는 것을 반영해요. 반영했으면 true */
@@ -304,7 +319,7 @@
         } else {
           if (opts.onSelect) opts.onSelect(a.station, a.lineN); else C.setCurrent({ name: a.station, line: a.lineN });
           rememberReceipt(a.p.key, drawIdFor(a.station), deps);
-          message = `Claude에서 뽑은 ${label(a.station)}역을 지금 목표 역으로 정했어요.`;
+          message = `${a.p.source === 'board' ? '보드 룰렛에서' : 'Claude에서'} 뽑은 ${label(a.station)}역을 지금 목표 역으로 정했어요.`;
         }
         proposals = proposals.filter((x) => x.key !== a.p.key);
         changed = true;
@@ -346,7 +361,7 @@
           const L = C.LINES.find((x) => lineName(x) === p.line);
           const ok = !!drawTarget(p, eligibleNow()) && p.date === today();
           return `<li class="hub-item" data-key="${esc(p.key)}">
-  <p class="hub-what">${L ? badge(L) + ' ' : ''}<strong>${esc(label(p.station))}</strong> · Claude가 뽑은 역 · ${esc(dotDate(p.date))}</p>${approvedNote}
+  <p class="hub-what">${L ? badge(L) + ' ' : ''}<strong>${esc(label(p.station))}</strong> · ${p.source === 'board' ? '보드 룰렛에서 뽑음' : 'Claude가 뽑은 역'} · ${esc(dotDate(p.date))}</p>${approvedNote}
   ${ok ? '' : '<p class="hint">지금 설정으로는 뽑을 수 없는 역이거나 지난 뽑기예요.</p>'}
   <div class="backup-actions">
     <button type="button" class="pill" data-act="go"${ok ? '' : ' disabled'}>목표로 정하기</button>
@@ -378,7 +393,9 @@
         const status = syncing ? '연결됨 · 동기화 중…' : retryLater ? '연결됨 · 잠시 뒤 다시 시도' : '연결됨';
         top = `<p class="hub-status">${dot(false)}<span>${status}</span></p>
 <div class="backup-actions"><button type="button" class="pill" data-act="sync"${syncing ? ' disabled' : ''}>지금 동기화</button><button type="button" class="pill" data-act="disconnect">연결 해제</button></div>
-<label class="switch"><input type="checkbox" data-act="auto"${autoApplyEnabled(deps) ? ' checked' : ''}><span class="box" aria-hidden="true"></span><span>Claude에서 승인한 기록은 바로 반영</span></label>`;
+<label class="switch"><input type="checkbox" data-act="auto"${autoApplyEnabled(deps) ? ' checked' : ''}><span class="box" aria-hidden="true"></span><span>Claude에서 승인한 기록은 바로 반영</span></label>${uploader ? `
+<label class="switch"><input type="checkbox" data-act="board"${uploader.enabled() ? ' checked' : ''}><span class="box" aria-hidden="true"></span><span>이 기기에서 보드에 올리기</span></label>${uploader.scopeNeeded() ? `
+<div class="hub-alert" role="status"><p>보드에 올리려면 Life Hub에 다시 연결해 주세요. 제안 받기는 지금처럼 계속돼요.</p>${connectBtn('다시 연결')}</div>${where}` : ''}` : ''}`;
       } else if (attention) {
         top = `<p class="hub-status">${dot(true)}<span>확인 필요</span></p>
 <div class="hub-alert" role="alert"><p>Life Hub 연결이 끊겼습니다. 다시 연결해 주세요. 이 기기의 기록은 그대로입니다.</p>${connectBtn('다시 연결')}</div>${where}
@@ -402,9 +419,10 @@ ${justStamped ? `<button type="button" class="pill" data-act="open">${esc(label(
         beginConnect(deps).then((u) => location.assign(u)).catch((err) => { message = err.message; paint(); });
         return;
       }
-      if (act === 'disconnect') { disconnect(deps); proposals = []; needsReconnect = false; retryLater = false; message = 'Life Hub 연결을 해제했어요.'; paint(); return; }
+      if (act === 'disconnect') { disconnect(deps); if (uploader) uploader.clearScopeNeeded(); proposals = []; needsReconnect = false; retryLater = false; message = 'Life Hub 연결을 해제했어요.'; paint(); return; }
       if (act === 'sync') { runSync(); return; }
       if (act === 'auto') { setAutoApply(deps, btn.checked); if (btn.checked) runSync(); return; }
+      if (act === 'board') { if (uploader) uploader.setEnabled(btn.checked); return; }
       if (act === 'open' && justStamped) { const j = justStamped; justStamped = null; paint(); opts.close(); opts.onSelect(j.key, j.lineN); return; }
       const li = btn.closest('.hub-item');
       const p = li && proposals.find((x) => x.key === li.dataset.key);
@@ -442,8 +460,8 @@ ${justStamped ? `<button type="button" class="pill" data-act="open">${esc(label(
       }
     });
 
-    on('stamps', () => { if (proposals.length) paint(); sharePoolSoon(); });
-    on('settings', () => { if (proposals.length) paint(); sharePoolSoon(); });
+    on('stamps', () => { if (proposals.length) paint(); sharePoolSoon(); if (uploader) uploader.markDirty(); });
+    on('settings', () => { if (proposals.length) paint(); sharePoolSoon(); if (uploader) uploader.markDirty(); });
     /* 도장·뽑기 범위가 바뀌면 허브의 뽑기 가능 역도 곧 맞춰요 (몇 초 모아서 한 번) */
     let poolTimer = 0;
     function sharePoolSoon() {
@@ -453,9 +471,13 @@ ${justStamped ? `<button type="button" class="pill" data-act="open">${esc(label(
     }
     paint();
     (callbackOnce = callbackOnce || completeStoredCallback(deps))
-      .then((done) => { if (done) { message = 'Life Hub에 연결했어요.'; opts.openAt(); } runSync(); })
+      .then((done) => {
+        if (done) { message = 'Life Hub에 연결했어요.'; if (uploader) uploader.clearScopeNeeded(); opts.openAt(); }
+        runSync();
+        if (uploader) uploader.onStart();   // 남은 것·하루 지난 것·바뀐 내용을 보내요
+      })
       .catch((e) => { message = e.message || 'Life Hub에 연결하지 못했어요.'; needsReconnect = !isConnected(deps); paint(); opts.openAt(); });
   }
 
-  Object.assign(C, { mountLifeHub, lifehub: { parseProposal, findStations, lineFor, entityIdFor, drawIdFor, sync, beginConnect, completeStoredCallback, stampFromProposal, autoPlan, drawTarget, lineRefs, stationRefs, autoApplyEnabled, setAutoApply } });
+  Object.assign(C, { mountLifeHub, lifehub: { accessToken, isConnected, browserDeps, SCOPE, parseProposal, findStations, lineFor, entityIdFor, drawIdFor, sync, beginConnect, completeStoredCallback, stampFromProposal, autoPlan, drawTarget, lineRefs, stationRefs, autoApplyEnabled, setAutoApply } });
 })();

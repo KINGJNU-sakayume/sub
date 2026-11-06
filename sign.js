@@ -177,7 +177,7 @@
   C.bindCount($('#openRecord'));
 
   D.unvisited.checked = !!state.unvisited;
-  D.unvisited.addEventListener('change', () => { state.unvisited = D.unvisited.checked; C.save(); D.note.textContent = ''; });
+  D.unvisited.addEventListener('change', () => { state.unvisited = D.unvisited.checked; C.save(); C.emit('settings'); D.note.textContent = ''; });
   D.draw.addEventListener('click', onDraw);
   document.addEventListener('keydown', (e) => {
     /* 창(서랍·출발역·스티커)이 열려 있으면 뒤에서 뽑기가 돌지 않게 해요 */
