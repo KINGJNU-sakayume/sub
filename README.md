@@ -27,11 +27,13 @@ python3 -m http.server 8765      # 저장소 폴더에서
 ```sh
 for f in data.js geo.js access.js core/*.js sign.js map.js sw.js; do node --check "$f"; done
 node tools/merge-curated.mjs --dry          # '경고'가 나오면 실패
+node tools/board-sample.mjs --check         # board/sample.json이 지금 코드의 결과와 같은지
+node tests/board.mjs                        # 보드 타일 규격·업로드 규칙 (Node만)
 npm install --no-save playwright@1.56.1 && npx playwright install chromium
 node tests/smoke.mjs http://localhost:8765/ # 정적 서버가 떠 있어야 해요. CHROMIUM_PATH로 브라우저 지정 가능
 ```
 
-PR과 main 배포(`pages.yml`)는 모두 `check.yml`(위 세 검사)을 통과해야 진행돼요.
+PR과 main 배포(`pages.yml`)는 모두 `check.yml`(위 검사)을 통과해야 진행돼요.
 
 ## 파일
 
@@ -43,6 +45,8 @@ PR과 main 배포(`pages.yml`)는 모두 `check.yml`(위 세 검사)을 통과�
 | `core/draw.js`, `core/route.js` | 뽑기 엔진, 길 안내 그래프 |
 | `core/sticker.js`, `core/seal.js`, `core/card.js` | 사진 → 스티커, 사진 없는 도장, 공유 카드 |
 | `core/lifehub.js` | Life Hub 연결·제안 확인(기록 서랍) |
+| `core/boardTiles.js`, `core/boardUpload.js` | Life Board 보드 목록 만들기(순수 함수), Life Hub에 올리기 |
+| `board/sample.json`, `tools/board-sample.mjs` | 지어낸 상태로 만든 보드 목록 예시와 그 생성기 |
 | `core/board.js`, `core/drawer.js`, `core/origin.js`, `core/backup.js` | 안내판과 사진 도장, 역 직접 찾기·도장첩, 출발역 창, 내보내기·불러오기 |
 | `sign.js`, `map.js` | 역명판 화면, 지도 화면 |
 
@@ -74,13 +78,42 @@ PR과 main 배포(`pages.yml`)는 모두 `check.yml`(위 세 검사)을 통과�
 
 Claude에게 "오늘 망원역 다녀왔어"라고 말하면, Claude가 [Life Hub](https://github.com/KINGJNU-sakayume/life-hub)에 **역 방문 제안**을 남기고 이 페이지가 받아 와요(`core/lifehub.js`).
 
-- 설정(기록 서랍) › **Life Hub**에서 한 번 연결해요(배포된 주소에서만). 이 페이지는 `sub:inbox` 권한만 받아 자기 제안만 읽어요. Life Hub는 `lifehub/` 페이지로 돌아와요.
+- 설정(기록 서랍) › **Life Hub**에서 한 번 연결해요(배포된 주소에서만). 이 페이지는 `sub:inbox`(자기 제안 읽기)와 `sub:board`(보드 목록 올리기) 권한을 받아요. Life Hub는 `lifehub/` 페이지로 돌아와요.
+- **Life Board 룰렛**이 뽑은 역도 같은 수신함에 출처 `board`(키 `board:…`)의 뽑기 제안으로 들어와요. 출처 `board`는 뽑기(`station_draw`)만 받고, 화면에 「보드 룰렛에서 뽑음」으로 보이며, Claude가 뽑은 것과 똑같이 「목표로 정하기」·「거절」을 거쳐요.
 - 제안이 있으면 기록 버튼에 숫자 배지가 붙고, 서랍 바로가기에 개수가 보여요. 역 이름(과 노선)이 하나로 맞으면 미리 골라 두고, 같은 이름의 역이 여럿이면 직접 골라요.
 - 「도장 찍기」를 눌러야 제안한 날짜로 **기본 도장**이 찍혀요. 이미 도장이 있으면 날짜·사진을 그대로 둬요. 찍은 뒤 그 역을 열어 사진 스티커를 붙일 수 있어요.
 - 「거절」은 도장첩을 바꾸지 않아요. 승인·거절 결과는 동기화할 때 Life Hub에 알려요.
 - **Claude 대화 카드**: 카드에서 승인한 방문은 역 이름이 하나로 정해질 때 페이지를 열면 바로 도장을 찍어요(「신촌」처럼 둘로 갈리면 여기서 골라요). 카드의 **역 뽑기**에서 「여기 갈래요」를 누르면, 오늘 날짜이고 지금 설정으로도 뽑을 수 있는 역일 때 지금 목표 역이 돼요(도장은 찍지 않아요). 설정 「Claude에서 승인된 항목 자동 반영」(기본 켜짐)으로 끌 수 있어요.
 - 카드와 허브 뽑기를 위해 노선·역 목록과 **지금 뽑을 수 있는 역**(뽑기 범위와 「안 간 역만」 설정 반영)을 Life Hub에 공유해요. 「안 간 역만」을 켜 두면 이 목록에서 다녀온 역을 거꾸로 알 수 있어요. 사진은 보내지 않아요.
 - 저장: `metro-stamp.lifehub.*` (localStorage) — 연결 토큰, 승인·거절 기록. 도장 자체는 지금처럼 `metro-stamp:v2`.
+
+## 보드 타일
+
+[Life Board](https://github.com/KINGJNU-sakayume/board)에 이 앱의 **최근 흐름**을 보여 주는 보드 목록(manifest v1, board `docs/TILES.md`)을 만들어 Life Hub에 올려요. 기록(도장) 자체는 올리지 않고, 보드에 그릴 글자만 올려요. 사진은 이 기기 안(IndexedDB)에만 있어 공개 주소가 없으므로 표지·포인트색은 보내지 않아요.
+
+| id | 타일 | 톤 | 크기 (처음) | 처음부터 보임 | 데이터 |
+| --- | --- | --- | --- | --- | --- |
+| `station` | 최근 역 + 룰렛 | plate | 1x1 2x1 4x2 (**4x2**) | ✓ | 가장 최근 도장의 역 이름·영문, `11/2 · 2호선 · 87 / 540역`, 룰렛 후보(지금 뽑을 수 있는 역) |
+| `recent` | 최근 찍은 역 | type·list | 2x1 2x2 (**2x2**) | ✓ | 최근 도장 12개: 역, 날짜(`11/2`), 노선 |
+| `line` | 노선 지도 | map | 2x1 2x2 4x2 (**2x2**) | | 가장 최근 도장 노선의 역 칸(간 역·안 간 역·최근 역) |
+| `count` | 진행률 | type·num | 1x1 2x1 (**1x1**) | | 찍은 역 수 / 전체, 최근 노선 진행과 최근 날짜 |
+
+- 지금 하고 있는 것(최근 역), 최근에 끝낸 것(최근 찍은 역), 다음 차례(룰렛)를 앞에 두고, 노선 지도·진행률은 '위젯 추가'에서 고르게 했어요. 타일 id는 보드 배치가 이 id로 저장되니 바꾸지 않아요.
+- 만들기: `core/boardTiles.js`의 `buildBoardTiles({ stamps, eligible, LINES, EN }, now)` — 네트워크·저장소·무작위 없이 같은 입력이면 같은 결과. 날짜는 '어제'처럼 틀려지는 말 대신 `11/2`(올해가 아니면 `2025/11/2`)로 써요. 길면 규격 길이로 자르고(`…`), 빈 글자는 필드를 빼요.
+- 날짜·순서: 최근 도장은 날짜순, 같은 날은 나중에 찍은 것이 먼저('몇 번째 도장'과 같은 규칙).
+- **룰렛 후보**: Life Hub에 공유하는 '지금 뽑을 수 있는 역(pool)'과 같은 역 키(`신촌(경의중앙)` 그대로). 노선 순서·역 순서로 펼쳐 중복을 빼고, 12자를 넘는 키는 뺍니다(자르면 Hub pool과 달라져 보드 제안이 `409`). 50개를 넘으면 (KST 날짜 + 역 키)의 FNV-1a 해시 순으로 50개를 골라 다시 노선 순서로 둬요 — 하루 동안은 고정, 날마다 바뀌어요. 2개 미만이면 룰렛을 빼요.
+- 빈 상태: 도장이 없으면 최근 역은 「첫 역을 찾아요」, 최근 찍은 역은 흐린 안내 한 줄, 노선 지도는 빼요(어차피 기록이 없으면 올리지 않아요).
+- 예시: `board/sample.json`(지어낸 상태, `node tools/board-sample.mjs`로 다시 만듦). `tests/board.mjs`가 board `js/schema.js` 복사본(`tests/board-schema.mjs`, 출처 커밋 주석)으로 검사해요.
+
+### 언제·어디서 올리나요
+
+- `PUT https://life-hub-api.213303.workers.dev/sub/v1/board` (권한 `sub:board`, `core/boardUpload.js`).
+- 도장이 바뀌거나 뽑기 범위·안 간 역 설정이 바뀌면(룰렛 후보가 바뀜): 마지막 시도에서 10분이 지났으면 바로, 아니면 10분이 찰 때 한 번 — **10분에 한 번 이하**. 내용은 `generated_at`을 뺀 본문의 sha256으로 비교해 같으면 보내지 않아요.
+- 앱을 열 때: 못 보낸 변경이 있으면 보내고, 마지막 성공이 하루보다 오래됐으면 **같은 내용이어도** 한 번 보내요(보드의 '오래됨' 14일은 Hub가 받은 시각 기준).
+- 올리지 않을 때: Life Hub에 연결돼 있지 않을 때, 도장이 하나도 없을 때(새 기기가 빈 목록으로 덮지 않게), 설정 **「이 기기에서 보드에 올리기」**가 꺼져 있을 때(기기별, 기본 켬). 이 앱의 기록은 기기 안에만 있고 Hub는 최신 목록 하나만 두므로, 두 기기에서 쓰면 보조 기기에서는 이 설정을 꺼 주세요.
+- 응답: `200`(저장·`unchanged`·`ignored`)은 성공. `400`·`413`은 이 앱의 버그라 개발자 콘솔에만 남기고 같은 내용은 다시 보내지 않아요(기기 시계가 5분 넘게 빠르면 `400`이 날 수도 있어요). 네트워크 오류·`5xx`는 다음 기회에 다시.
+- **다시 연결이 필요한 경우**: `sub:board` 권한이 생기기 전에 만든 연결은 첫 업로드가 `403 insufficient_scope`예요. 이때는 토큰을 지우지 않고(제안 받기는 계속) Life Hub 섹션에 「보드에 올리려면 Life Hub에 다시 연결해 주세요」와 「다시 연결」 버튼만 보여요. 다시 연결하면 바로 올려요. 갱신 뒤에도 `401`이거나 다른 `403`이면 기존 규칙대로 연결이 끊겨요.
+- 저장: `metro-stamp.board.v1`(마지막 성공 sha·시각·보낼 것 있음), `metro-stamp.board.device.v1`(기기 설정), `metro-stamp.board.scope.v1`(다시 연결 필요). 개인 데이터는 없어요.
 
 ## 백업
 

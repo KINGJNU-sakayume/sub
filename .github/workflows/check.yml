@@ -29,6 +29,11 @@ jobs:
           echo "$out"
           if echo "$out" | grep -q '^경고'; then exit 1; fi
 
+      - name: Board tiles
+        run: |
+          node tools/board-sample.mjs --check
+          node tests/board.mjs
+
       - name: Install Playwright
         run: |
           npm install --no-save playwright@1.56.1

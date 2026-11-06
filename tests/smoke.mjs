@@ -525,6 +525,49 @@ console.log('Life Hub 설정 섹션 규격 (네트워크는 가짜 응답)');
   await p.context().close();
 }
 
+console.log('Life Board (네트워크는 가짜 응답)');
+{
+  /* 보드 룰렛이 보낸 뽑기(출처 board): Claude 뽑기와 같은 승인 흐름, 출처 표시. 보드 목록 업로드는 권한 부족(403) */
+  const todayStr = new Date().toLocaleDateString('sv-SE');
+  const p = await page(seed({ stamps: { '왕십리': { d: '2026-10-17', l: 2 } } }), { init: HUB_TOKENS });
+  const posted = [], boards = [];
+  await p.context().route(/life-hub-api\.213303\.workers\.dev/, async (r) => {
+    const req = r.request(), url = req.url();
+    if (req.method() === 'OPTIONS') return r.fulfill({ status: 204, headers: HUB_CORS });
+    if (/\/sub\/v1\/board$/.test(url)) {
+      boards.push(JSON.parse(req.postData() || '{}'));
+      /* 헤더를 노출하지 않는 CORS여도 본문으로 insufficient_scope를 알아봐야 해요 */
+      return r.fulfill({ status: 403, headers: { ...HUB_CORS, 'www-authenticate': 'Bearer error="insufficient_scope", scope="sub:board"' }, contentType: 'application/json', body: '{"error":"insufficient_scope"}' });
+    }
+    if (req.method() === 'POST') { posted.push(JSON.parse(req.postData() || '{}')); return r.fulfill({ status: 200, headers: HUB_CORS, contentType: 'application/json', body: '{}' }); }
+    if (req.method() === 'PUT') return r.fulfill({ status: 200, headers: HUB_CORS, contentType: 'application/json', body: '{}' });
+    return r.fulfill({ status: 200, headers: HUB_CORS, contentType: 'application/json', body: JSON.stringify({ candidates: [
+      { key: 'board:roulette-' + 'c'.repeat(20), candidate: { schema_version: 1, candidate_type: 'station_draw', source: 'board', idempotency_key: 'roulette-' + 'c'.repeat(20), created_at: '2026-11-05T01:00:00Z', payload: { date: todayStr, line: '1호선', station: '시청' } } },
+      { key: 'board:visit-' + 'd'.repeat(20), candidate: { schema_version: 1, candidate_type: 'station_visit', source: 'board', idempotency_key: 'visit-' + 'd'.repeat(20), created_at: '2026-11-05T01:00:00Z', payload: { date: todayStr, station: '시청' } } },
+    ] }) });
+  });
+  await p.goto(BASE + 'index.html');
+  await p.waitForSelector('#openRecord[data-hub="1"]');
+  ok(true, '출처 board는 station_draw만 받음(방문 제안은 버림)');
+  await p.click('#openRecord');
+  await p.waitForSelector('.drawer.on');
+  ok(/보드 룰렛에서 뽑음/.test(await p.textContent('#lifehubBox .hub-item')), '보드 룰렛에서 뽑았다고 출처를 보여 줌');
+  await p.waitForFunction(() => /보드에 올리려면/.test(document.querySelector('#lifehubBox').textContent));
+  ok(boards.length >= 1 && boards[0].app === 'sub' && boards[0].tiles.some((t) => t.id === 'station'), '열면 보드 목록을 올림');
+  ok(await p.evaluate(() => !!localStorage.getItem('metro-stamp.lifehub.tokens.v1')), '권한 부족(insufficient_scope)이어도 토큰을 지우지 않음');
+  ok((await p.textContent('#lifehubBox .hub-status')).includes('연결됨') && (await p.$$('#lifehubBox .hub-alert [data-act="connect"]')).length === 1, '연결은 그대로, 보드용 다시 연결 안내');
+  ok(await p.isChecked('#lifehubBox [data-act="board"]'), '이 기기에서 보드에 올리기: 기본 켬');
+  await p.click('#lifehubBox .hub-item [data-act="go"]');
+  await p.waitForFunction(() => /시청/.test(document.querySelector('#sign, .sign, main').textContent));
+  ok(posted.some((b) => b.key === 'board:roulette-' + 'c'.repeat(20) && b.entity_type === 'station_draw'), '목표로 정하면 Claude 뽑기와 같이 결과를 보냄');
+  await p.click('#openRecord');
+  await p.waitForSelector('.drawer.on');
+  await p.click('#lifehubBox label:has([data-act="board"])');
+  ok(await p.evaluate(() => localStorage.getItem('metro-stamp.board.device.v1') === 'off'), '스위치를 끄면 이 기기 설정으로 저장');
+  ok(!p.errors.length, '자바스크립트 오류 없음' + (p.errors.length ? ': ' + p.errors[0] : ''));
+  await p.context().close();
+}
+
 await browser.close();
 console.log(failed ? `\n실패 ${failed}개` : '\n모두 통과');
 process.exit(failed ? 1 : 0);
